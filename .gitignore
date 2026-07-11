@@ -1,0 +1,51 @@
+# Unity generated directories
+/[Ll]ibrary/
+/[Tt]emp/
+/[Oo]bj/
+/[Bb]uild/
+/[Bb]uilds/
+/[Ll]ogs/
+/[Uu]ser[Ss]ettings/
+/[Mm]emoryCaptures/
+/[Rr]ecordings/
+/*_BurstDebugInformation_DoNotShip/
+
+# IDE generated files
+/.vs/
+/.idea/
+/.vscode/
+*.csproj
+*.sln
+*.suo
+*.user
+*.userprefs
+*.pidb
+*.booproj
+*.svd
+*.pdb
+*.mdb
+*.opendb
+*.VC.db
+
+# OS files
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Unity crash and profiling output
+sysinfo.txt
+crashlytics-build.properties
+
+# Local YOLO tooling
+/.venv-yolo/
+/yolov8n.pt
+/Tools/output/
+
+# Builds and packages
+*.apk
+*.aab
+*.unitypackage
+
+# Optional Unity sample assets and missing Git LFS model pointers
+/Assets/Samples/
+*.fbx

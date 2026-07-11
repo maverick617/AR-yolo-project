@@ -1,0 +1,17 @@
+* text=auto
+*.cs text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+*.shader text eol=lf
+*.meta text eol=lf
+*.unity text eol=lf
+*.prefab text eol=lf
+*.asset text eol=lf
+*.mat text eol=lf
+*.fbx filter=lfs diff=lfs merge=lfs -text
+*.onnx binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.tif binary
+*.pdf binary
