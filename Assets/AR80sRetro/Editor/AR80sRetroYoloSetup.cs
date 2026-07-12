@@ -4,6 +4,7 @@ using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.XR.ARFoundation;
+using Unity.XR.CoreUtils;
 
 namespace AR80sRetroEditor
 {
@@ -117,12 +118,12 @@ namespace AR80sRetroEditor
                 session = Undo.AddComponent<ARSession>(sessionObject);
             }
 
-            ARSessionOrigin origin = Object.FindObjectOfType<ARSessionOrigin>();
+            XROrigin origin = Object.FindObjectOfType<XROrigin>();
             if (origin == null)
             {
                 GameObject originObject = new GameObject("XR Origin (AR)");
                 Undo.RegisterCreatedObjectUndo(originObject, "Create XR Origin");
-                origin = Undo.AddComponent<ARSessionOrigin>(originObject);
+                origin = Undo.AddComponent<XROrigin>(originObject);
             }
 
             GameObject cameraOffset = origin.CameraFloorOffsetObject;
@@ -175,7 +176,7 @@ namespace AR80sRetroEditor
                 return;
             }
 
-            ARSessionOrigin origin = Object.FindObjectOfType<ARSessionOrigin>();
+            XROrigin origin = Object.FindObjectOfType<XROrigin>();
             if (origin == null)
             {
                 return;

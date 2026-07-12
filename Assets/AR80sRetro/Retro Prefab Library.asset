@@ -29,6 +29,12 @@ MonoBehaviour:
     estimatedHeightMultiplier: 0.9
     estimatedWidthMultiplier: 0.9
     scaleMultiplierRange: {x: 0.25, y: 8}
+    useAprilTagPose: 0
+    aprilTagId: -1
+    aprilTagTrackedImageName: 
+    aprilTagToObjectOffsetMeters: {x: 0, y: 0, z: 0}
+    aprilTagToObjectRotationEuler: {x: 0, y: 0, z: 0}
+    aprilTagMaxPoseAgeSeconds: 0.35
   - detectionLabel: cup
     prefab: {fileID: 6759112859541804290, guid: 422aab88cfa072f47b4339b9d444bd03, type: 3}
     spawnScale: {x: 10, y: 12, z: 10}
@@ -45,6 +51,12 @@ MonoBehaviour:
     estimatedHeightMultiplier: 0.9
     estimatedWidthMultiplier: 0.9
     scaleMultiplierRange: {x: 0.25, y: 4}
+    useAprilTagPose: 0
+    aprilTagId: -1
+    aprilTagTrackedImageName: 
+    aprilTagToObjectOffsetMeters: {x: 0, y: 0, z: 0}
+    aprilTagToObjectRotationEuler: {x: 0, y: 0, z: 0}
+    aprilTagMaxPoseAgeSeconds: 0.35
   - detectionLabel: tv
     prefab: {fileID: 3860385251880703525, guid: 275e51c1632a68a4da78c6ecfdfdc17f, type: 3}
     spawnScale: {x: 10, y: 10, z: 10}
@@ -61,6 +73,12 @@ MonoBehaviour:
     estimatedHeightMultiplier: 0.9
     estimatedWidthMultiplier: 1
     scaleMultiplierRange: {x: 0.25, y: 8}
+    useAprilTagPose: 0
+    aprilTagId: -1
+    aprilTagTrackedImageName: 
+    aprilTagToObjectOffsetMeters: {x: 0, y: 0, z: 0}
+    aprilTagToObjectRotationEuler: {x: 0, y: 0, z: 0}
+    aprilTagMaxPoseAgeSeconds: 0.35
   - detectionLabel: bottle
     prefab: {fileID: 9156859731359552179, guid: ccf9bb85c3a3b2a4cacc8792c96fe999, type: 3}
     spawnScale: {x: 10, y: 10, z: 10}
@@ -77,6 +95,12 @@ MonoBehaviour:
     estimatedHeightMultiplier: 0.9
     estimatedWidthMultiplier: 0.9
     scaleMultiplierRange: {x: 0.25, y: 8}
+    useAprilTagPose: 1
+    aprilTagId: 0
+    aprilTagTrackedImageName: 
+    aprilTagToObjectOffsetMeters: {x: 0, y: 0, z: 0}
+    aprilTagToObjectRotationEuler: {x: 0, y: 0, z: 0}
+    aprilTagMaxPoseAgeSeconds: 0.35
   - detectionLabel: chair
     prefab: {fileID: 7020758092765886102, guid: ac1b054d14ee089498ee3433be3ff942, type: 3}
     spawnScale: {x: 8, y: 8, z: 8}
@@ -93,6 +117,12 @@ MonoBehaviour:
     estimatedHeightMultiplier: 1
     estimatedWidthMultiplier: 1.1
     scaleMultiplierRange: {x: 0.25, y: 10}
+    useAprilTagPose: 0
+    aprilTagId: -1
+    aprilTagTrackedImageName: 
+    aprilTagToObjectOffsetMeters: {x: 0, y: 0, z: 0}
+    aprilTagToObjectRotationEuler: {x: 0, y: 0, z: 0}
+    aprilTagMaxPoseAgeSeconds: 0.35
   - detectionLabel: couch
     prefab: {fileID: 6311426428645656921, guid: 82953f9de86496b4faac69e70ce3ef31, type: 3}
     spawnScale: {x: 10, y: 10, z: 10}
@@ -109,6 +139,12 @@ MonoBehaviour:
     estimatedHeightMultiplier: 1
     estimatedWidthMultiplier: 1.15
     scaleMultiplierRange: {x: 0.25, y: 12}
+    useAprilTagPose: 0
+    aprilTagId: -1
+    aprilTagTrackedImageName: 
+    aprilTagToObjectOffsetMeters: {x: 0, y: 0, z: 0}
+    aprilTagToObjectRotationEuler: {x: 0, y: 0, z: 0}
+    aprilTagMaxPoseAgeSeconds: 0.35
   - detectionLabel: plant
     prefab: {fileID: 5576067589871077033, guid: af939adc76e1be34387f8a1721bc2b97, type: 3}
     spawnScale: {x: 10, y: 10, z: 10}
@@ -125,6 +161,12 @@ MonoBehaviour:
     estimatedHeightMultiplier: 1
     estimatedWidthMultiplier: 1
     scaleMultiplierRange: {x: 0.25, y: 8}
+    useAprilTagPose: 0
+    aprilTagId: -1
+    aprilTagTrackedImageName: 
+    aprilTagToObjectOffsetMeters: {x: 0, y: 0, z: 0}
+    aprilTagToObjectRotationEuler: {x: 0, y: 0, z: 0}
+    aprilTagMaxPoseAgeSeconds: 0.35
   - detectionLabel: table
     prefab: {fileID: 6347436451444669302, guid: d42e13d311f1b76468b6560fa60aacd5, type: 3}
     spawnScale: {x: 8, y: 8, z: 8}
@@ -141,3 +183,9 @@ MonoBehaviour:
     estimatedHeightMultiplier: 1
     estimatedWidthMultiplier: 1.15
     scaleMultiplierRange: {x: 0.25, y: 12}
+    useAprilTagPose: 0
+    aprilTagId: -1
+    aprilTagTrackedImageName: 
+    aprilTagToObjectOffsetMeters: {x: 0, y: 0, z: 0}
+    aprilTagToObjectRotationEuler: {x: 0, y: 0, z: 0}
+    aprilTagMaxPoseAgeSeconds: 0.35
