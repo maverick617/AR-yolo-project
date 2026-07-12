@@ -49,3 +49,5 @@ crashlytics-build.properties
 # Optional Unity sample assets and missing Git LFS model pointers
 /Assets/Samples/
 *.fbx
+!Assets/AR80sRetro/Models/cup/Model/cup.fbx
+!Assets/AR80sRetro/Models/tv/Model/tv.fbx
