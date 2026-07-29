@@ -6,6 +6,12 @@ using UnityEngine.XR.ARSubsystems;
 
 namespace AR80sRetro
 {
+    /// <summary>
+    /// Stores recent poses from a conventional AprilTag detector or an
+    /// ARTrackedImageManager. A rule may map a small set of rigid tag IDs to one
+    /// common object frame, while each observed tag is still associated with at
+    /// most one YOLO detection.
+    /// </summary>
     public sealed class AprilTagPoseSource : MonoBehaviour
     {
         [Serializable]
@@ -41,12 +47,45 @@ namespace AR80sRetro
         [SerializeField] private Camera arCamera;
         [SerializeField] private ARTrackedImageManager trackedImageManager;
         [SerializeField] private List<Binding> bindings = new List<Binding>();
-        [SerializeField, Min(0.05f)] private float defaultMaxPoseAgeSeconds = 0.35f;
-        [SerializeField, Range(0f, 0.5f)] private float detectionBoxPadding = 0.08f;
-        [SerializeField, Range(0.01f, 1f)] private float maxViewportCenterDistance = 0.35f;
+        [SerializeField, Min(0.05f)] private float defaultMaxPoseAgeSeconds = 0.6f;
+        [SerializeField, Range(0f, 0.5f)] private float detectionBoxPadding = 0.18f;
+        [SerializeField, Range(0.01f, 1f)] private float maxViewportCenterDistance = 0.55f;
+        [Tooltip("If exactly one fresh tag can belong to the detected cup, allow it to bind even when RGB/display transforms make its projected point miss the YOLO box.")]
+        [SerializeField] private bool allowSingleVisibleTagFallback = true;
         [SerializeField] private bool logPoseUpdates;
 
         private readonly List<Observation> observations = new List<Observation>();
+
+        public int FreshObservationCount
+        {
+            get
+            {
+                int count = 0;
+                float now = Time.time;
+                for (int i = 0; i < observations.Count; i++)
+                {
+                    if (now - observations[i].LastSeenTime <= defaultMaxPoseAgeSeconds)
+                    {
+                        count++;
+                    }
+                }
+
+                return count;
+            }
+        }
+
+        private void Awake()
+        {
+            if (arCamera == null)
+            {
+                arCamera = Camera.main;
+            }
+
+            if (trackedImageManager == null)
+            {
+                trackedImageManager = FindObjectOfType<ARTrackedImageManager>();
+            }
+        }
 
         private void Reset()
         {
@@ -86,47 +125,58 @@ namespace AR80sRetro
 
             if (logPoseUpdates)
             {
-                Debug.Log($"AprilTag pose: id={tagId}, image={imageName}, pose={tagPose.position}", this);
+                Debug.Log($"AprilTag pose: id={tagId}, image={imageName}, position={tagPose.position}", this);
             }
         }
 
-        public bool TryGetObjectPose(
+        /// <summary>
+        /// Returns the raw tag pose associated with a YOLO detection. Registration
+        /// code should use this API so the learned Tag-to-cup transform is applied
+        /// exactly once.
+        /// </summary>
+        public bool TryGetTagPose(
             RetroReplacementRule rule,
             DetectionResult detection,
-            out Pose objectPose)
-        {
-            return TryGetObjectPose(
-                rule,
-                detection,
-                out objectPose,
-                out _,
-                out _);
-        }
-
-        public bool TryGetObjectPose(
-            RetroReplacementRule rule,
-            DetectionResult detection,
-            out Pose objectPose,
+            out Pose tagPose,
             out int tagId,
             out string imageName)
         {
-            objectPose = default;
+            return TryGetTagPose(
+                rule,
+                detection,
+                out tagPose,
+                out tagId,
+                out imageName,
+                out _);
+        }
+
+        public bool TryGetTagPose(
+            RetroReplacementRule rule,
+            DetectionResult detection,
+            out Pose tagPose,
+            out int tagId,
+            out string imageName,
+            out float poseAgeSeconds)
+        {
+            tagPose = default;
             tagId = -1;
             imageName = null;
+            poseAgeSeconds = float.PositiveInfinity;
 
             if (rule == null || !rule.UseAprilTagPose)
             {
                 return false;
             }
 
-            float now = Time.time;
             Rect viewportRect = ToViewportRect(detection.NormalizedBox);
             Rect paddedViewportRect = ExpandRect(viewportRect, detectionBoxPadding);
             Vector2 detectionCenter = viewportRect.center;
+            float now = Time.time;
 
             Observation bestObservation = null;
-            Binding bestBinding = null;
             float bestScore = float.PositiveInfinity;
+            Observation onlyFreshMatch = null;
+            int freshMatchCount = 0;
 
             for (int i = 0; i < observations.Count; i++)
             {
@@ -136,29 +186,32 @@ namespace AR80sRetro
                     continue;
                 }
 
-                float maxAge = binding != null
-                    ? binding.MaxPoseAgeSeconds
-                    : Mathf.Max(defaultMaxPoseAgeSeconds, rule.AprilTagMaxPoseAgeSeconds);
+                float maxAge = GetMaxPoseAge(rule, binding);
                 if (now - observation.LastSeenTime > maxAge)
                 {
                     continue;
                 }
 
-                if (!TryScoreObservation(
+                freshMatchCount++;
+                onlyFreshMatch = observation;
+
+                if (TryScoreObservation(
                     observation,
                     paddedViewportRect,
                     detectionCenter,
-                    out float score))
-                {
-                    continue;
-                }
-
-                if (score < bestScore)
+                    out float score)
+                    && score < bestScore)
                 {
                     bestScore = score;
                     bestObservation = observation;
-                    bestBinding = binding;
                 }
+            }
+
+            if (bestObservation == null
+                && allowSingleVisibleTagFallback
+                && freshMatchCount == 1)
+            {
+                bestObservation = onlyFreshMatch;
             }
 
             if (bestObservation == null)
@@ -166,66 +219,22 @@ namespace AR80sRetro
                 return false;
             }
 
-            objectPose = BuildObjectPose(rule, bestBinding, bestObservation.TagPose);
+            tagPose = bestObservation.TagPose;
             tagId = bestObservation.TagId;
             imageName = bestObservation.ImageName;
+            poseAgeSeconds = Mathf.Max(0f, now - bestObservation.LastSeenTime);
             return true;
         }
 
-        public bool TryGetObjectPose(
-            RetroReplacementRule rule,
-            out Pose objectPose)
-        {
-            objectPose = default;
-
-            if (rule == null || !rule.UseAprilTagPose)
-            {
-                return false;
-            }
-
-            float now = Time.time;
-            Observation bestObservation = null;
-            Binding bestBinding = null;
-            float newestSeenTime = float.NegativeInfinity;
-
-            for (int i = 0; i < observations.Count; i++)
-            {
-                Observation observation = observations[i];
-                if (!TryResolveBinding(rule, observation, out Binding binding))
-                {
-                    continue;
-                }
-
-                float maxAge = binding != null
-                    ? binding.MaxPoseAgeSeconds
-                    : Mathf.Max(defaultMaxPoseAgeSeconds, rule.AprilTagMaxPoseAgeSeconds);
-                if (now - observation.LastSeenTime > maxAge
-                    || observation.LastSeenTime <= newestSeenTime)
-                {
-                    continue;
-                }
-
-                bestObservation = observation;
-                bestBinding = binding;
-                newestSeenTime = observation.LastSeenTime;
-            }
-
-            if (bestObservation == null)
-            {
-                return false;
-            }
-
-            objectPose = BuildObjectPose(rule, bestBinding, bestObservation.TagPose);
-            return true;
-        }
-
-        public bool TryGetObjectPose(
+        public bool TryGetTagPose(
             RetroReplacementRule rule,
             int requiredTagId,
             string requiredImageName,
-            out Pose objectPose)
+            out Pose tagPose,
+            out float poseAgeSeconds)
         {
-            objectPose = default;
+            tagPose = default;
+            poseAgeSeconds = float.PositiveInfinity;
 
             if (rule == null || !rule.UseAprilTagPose)
             {
@@ -233,9 +242,8 @@ namespace AR80sRetro
             }
 
             float now = Time.time;
-            Observation bestObservation = null;
-            Binding bestBinding = null;
-            float newestSeenTime = float.NegativeInfinity;
+            Observation newest = null;
+            float newestTime = float.NegativeInfinity;
 
             for (int i = 0; i < observations.Count; i++)
             {
@@ -246,27 +254,185 @@ namespace AR80sRetro
                     continue;
                 }
 
-                float maxAge = binding != null
-                    ? binding.MaxPoseAgeSeconds
-                    : Mathf.Max(defaultMaxPoseAgeSeconds, rule.AprilTagMaxPoseAgeSeconds);
+                float maxAge = GetMaxPoseAge(rule, binding);
                 if (now - observation.LastSeenTime > maxAge
-                    || observation.LastSeenTime <= newestSeenTime)
+                    || observation.LastSeenTime <= newestTime)
                 {
                     continue;
                 }
 
-                bestObservation = observation;
-                bestBinding = binding;
-                newestSeenTime = observation.LastSeenTime;
+                newest = observation;
+                newestTime = observation.LastSeenTime;
             }
 
-            if (bestObservation == null)
+            if (newest == null)
             {
                 return false;
             }
 
-            objectPose = BuildObjectPose(rule, bestBinding, bestObservation.TagPose);
+            tagPose = newest.TagPose;
+            poseAgeSeconds = Mathf.Max(0f, now - newest.LastSeenTime);
             return true;
+        }
+
+        /// <summary>
+        /// Returns the newest fresh observation across every tag mount configured
+        /// for the same rule. This lets an existing cup track hand over from one
+        /// face tag to another without waiting for the next YOLO inference.
+        /// </summary>
+        public bool TryGetNewestTagPose(
+            RetroReplacementRule rule,
+            out Pose tagPose,
+            out int tagId,
+            out string imageName,
+            out float poseAgeSeconds)
+        {
+            tagPose = default;
+            tagId = -1;
+            imageName = null;
+            poseAgeSeconds = float.PositiveInfinity;
+            if (!TryGetNewestMatchingObservation(
+                rule,
+                out Observation observation,
+                out _))
+            {
+                return false;
+            }
+
+            tagPose = observation.TagPose;
+            tagId = observation.TagId;
+            imageName = observation.ImageName;
+            poseAgeSeconds = Mathf.Max(0f, Time.time - observation.LastSeenTime);
+            return true;
+        }
+
+        // Compatibility APIs for non-cup rules and existing native callers.
+        public bool TryGetObjectPose(
+            RetroReplacementRule rule,
+            DetectionResult detection,
+            out Pose objectPose)
+        {
+            return TryGetObjectPose(rule, detection, out objectPose, out _, out _);
+        }
+
+        public bool TryGetObjectPose(
+            RetroReplacementRule rule,
+            DetectionResult detection,
+            out Pose objectPose,
+            out int tagId,
+            out string imageName)
+        {
+            objectPose = default;
+            if (!TryGetTagPose(rule, detection, out Pose tagPose, out tagId, out imageName))
+            {
+                return false;
+            }
+
+            TryResolveBinding(rule, FindObservation(tagId, imageName), out Binding binding);
+            objectPose = BuildObjectPose(
+                rule,
+                binding,
+                tagPose,
+                tagId,
+                imageName);
+            return true;
+        }
+
+        public bool TryGetObjectPose(RetroReplacementRule rule, out Pose objectPose)
+        {
+            objectPose = default;
+            if (!TryGetNewestMatchingObservation(rule, out Observation observation, out Binding binding))
+            {
+                return false;
+            }
+
+            objectPose = BuildObjectPose(
+                rule,
+                binding,
+                observation.TagPose,
+                observation.TagId,
+                observation.ImageName);
+            return true;
+        }
+
+        public bool TryGetObjectPose(
+            RetroReplacementRule rule,
+            int requiredTagId,
+            string requiredImageName,
+            out Pose objectPose)
+        {
+            objectPose = default;
+            if (!TryGetTagPose(
+                rule,
+                requiredTagId,
+                requiredImageName,
+                out Pose tagPose,
+                out _))
+            {
+                return false;
+            }
+
+            Observation observation = FindObservation(requiredTagId, requiredImageName);
+            TryResolveBinding(rule, observation, out Binding binding);
+            objectPose = BuildObjectPose(
+                rule,
+                binding,
+                tagPose,
+                requiredTagId,
+                requiredImageName);
+            return true;
+        }
+
+        private bool TryGetNewestMatchingObservation(
+            RetroReplacementRule rule,
+            out Observation newest,
+            out Binding newestBinding)
+        {
+            newest = null;
+            newestBinding = null;
+            if (rule == null || !rule.UseAprilTagPose)
+            {
+                return false;
+            }
+
+            float newestTime = float.NegativeInfinity;
+            float now = Time.time;
+            for (int i = 0; i < observations.Count; i++)
+            {
+                Observation observation = observations[i];
+                if (!TryResolveBinding(rule, observation, out Binding binding)
+                    || now - observation.LastSeenTime > GetMaxPoseAge(rule, binding)
+                    || observation.LastSeenTime <= newestTime)
+                {
+                    continue;
+                }
+
+                newest = observation;
+                newestBinding = binding;
+                newestTime = observation.LastSeenTime;
+            }
+
+            return newest != null;
+        }
+
+        private float GetMaxPoseAge(RetroReplacementRule rule, Binding binding)
+        {
+            return binding != null
+                ? binding.MaxPoseAgeSeconds
+                : rule.AprilTagMaxPoseAgeSeconds;
+        }
+
+        private Observation FindObservation(int tagId, string imageName)
+        {
+            for (int i = 0; i < observations.Count; i++)
+            {
+                if (IsTagMatch(tagId, imageName, observations[i]))
+                {
+                    return observations[i];
+                }
+            }
+
+            return null;
         }
 
         private void HandleTrackedImagesChanged(ARTrackedImagesChangedEventArgs eventArgs)
@@ -305,11 +471,6 @@ namespace AR80sRetro
             observation.LastSeenTime = Time.time;
             observation.TrackableId = trackedImage.trackableId;
             observation.HasTrackableId = true;
-
-            if (logPoseUpdates)
-            {
-                Debug.Log($"Tracked tag image: id={tagId}, image={imageName}", this);
-            }
         }
 
         private void RemoveTrackedImage(ARTrackedImage trackedImage)
@@ -332,19 +493,10 @@ namespace AR80sRetro
 
         private Observation FindOrCreateObservation(int tagId, string imageName)
         {
-            for (int i = 0; i < observations.Count; i++)
+            Observation existing = FindObservation(tagId, imageName);
+            if (existing != null)
             {
-                Observation observation = observations[i];
-                if (tagId >= 0 && observation.TagId == tagId)
-                {
-                    return observation;
-                }
-
-                if (!string.IsNullOrWhiteSpace(imageName)
-                    && string.Equals(observation.ImageName, imageName, StringComparison.OrdinalIgnoreCase))
-                {
-                    return observation;
-                }
+                return existing;
             }
 
             Observation created = new Observation();
@@ -358,17 +510,25 @@ namespace AR80sRetro
             out Binding binding)
         {
             binding = null;
-            for (int i = 0; i < bindings.Count; i++)
+            if (rule == null || observation == null)
+            {
+                return false;
+            }
+
+            // An optional legacy Binding may tune age/offset, but it must never
+            // widen a rule that explicitly owns a fixed multi-tag identity set.
+            if (!rule.IsAprilTagMatch(observation.TagId, observation.ImageName))
+            {
+                return false;
+            }
+
+            for (int i = 0; bindings != null && i < bindings.Count; i++)
             {
                 Binding candidate = bindings[i];
                 if (candidate == null
                     || !candidate.Enabled
-                    || !IsLabelMatch(candidate.DetectionLabel, rule.DetectionLabel))
-                {
-                    continue;
-                }
-
-                if (!IsTagMatch(candidate.TagId, candidate.TrackedImageName, observation))
+                    || !IsLabelMatch(candidate.DetectionLabel, rule.DetectionLabel)
+                    || !IsTagMatch(candidate.TagId, candidate.TrackedImageName, observation))
                 {
                     continue;
                 }
@@ -377,7 +537,7 @@ namespace AR80sRetro
                 return true;
             }
 
-            return IsTagMatch(rule.AprilTagId, rule.AprilTagTrackedImageName, observation);
+            return rule.IsAprilTagMatch(observation.TagId, observation.ImageName);
         }
 
         private bool TryScoreObservation(
@@ -387,7 +547,6 @@ namespace AR80sRetro
             out float score)
         {
             score = 0f;
-
             if (arCamera == null)
             {
                 return true;
@@ -414,20 +573,22 @@ namespace AR80sRetro
         private static Pose BuildObjectPose(
             RetroReplacementRule rule,
             Binding binding,
-            Pose tagPose)
+            Pose tagPose,
+            int tagId,
+            string imageName)
         {
             Vector3 localOffset = binding != null
                 ? binding.TagToObjectOffsetMeters
                 : rule.AprilTagToObjectOffsetMeters;
             Quaternion localRotation = binding != null
-                ? binding.TagToObjectRotation
-                : rule.AprilTagToObjectRotation;
+                ? binding.TagToObjectRotation * rule.RotationOffset
+                : rule.GetAprilTagToObjectRotation(tagId, imageName);
 
-            Vector3 position = tagPose.position
-                + tagPose.rotation * localOffset
-                + Vector3.up * rule.VerticalOffsetMeters;
-            Quaternion rotation = tagPose.rotation * localRotation * rule.RotationOffset;
-            return new Pose(position, rotation);
+            return new Pose(
+                tagPose.position
+                    + tagPose.rotation * localOffset
+                    + Vector3.up * rule.VerticalOffsetMeters,
+                tagPose.rotation * localRotation);
         }
 
         private static bool IsLabelMatch(string left, string right)
@@ -440,18 +601,24 @@ namespace AR80sRetro
             string imageName,
             Observation observation)
         {
+            if (observation == null)
+            {
+                return false;
+            }
+
             bool hasTagId = tagId >= 0;
             bool hasImageName = !string.IsNullOrWhiteSpace(imageName);
-
             if (!hasTagId && !hasImageName)
             {
                 return true;
             }
 
-            bool idMatches = hasTagId && observation.TagId == tagId;
-            bool imageMatches = hasImageName
-                && string.Equals(observation.ImageName, imageName, StringComparison.OrdinalIgnoreCase);
-            return idMatches || imageMatches;
+            return (hasTagId && observation.TagId == tagId)
+                || (hasImageName
+                    && string.Equals(
+                        observation.ImageName,
+                        imageName,
+                        StringComparison.OrdinalIgnoreCase));
         }
 
         private static Rect ToViewportRect(Rect topLeftNormalizedBox)

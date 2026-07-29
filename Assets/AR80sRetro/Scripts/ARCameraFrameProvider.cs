@@ -20,16 +20,37 @@ namespace AR80sRetro
         [SerializeField, Min(64)] private int outputHeight = 640;
         [SerializeField] private TextureFormat outputFormat = TextureFormat.RGB24;
         [SerializeField] private FrameRotation frameRotation = FrameRotation.Clockwise90;
+        [SerializeField] private bool centerCropToOutputAspect = true;
+        [Tooltip("The cup demo uses one calibrated portrait camera transform. Keep this enabled until all display orientations have separate calibration.")]
+        [SerializeField] private bool lockToPortrait = true;
         [SerializeField] private Vector2 screenOffsetNormalized;
         [SerializeField] private Vector2 screenScale = Vector2.one;
 
         private Texture2D cameraTexture;
         private Texture2D unrotatedTexture;
         private byte[] rotatedPixels;
+        private int lastUpdatedUnityFrame = -1;
+        private RectInt lastInputRect;
 
         public Texture2D CameraTexture => cameraTexture;
         public bool HasFrame { get; private set; }
+        public double FrameTimestampSeconds { get; private set; }
+        public FrameRotation AppliedFrameRotation => frameRotation;
         public event Action<Texture2D> FrameReady;
+
+        private void Awake()
+        {
+            if (!lockToPortrait)
+            {
+                return;
+            }
+
+            Screen.autorotateToPortrait = true;
+            Screen.autorotateToPortraitUpsideDown = false;
+            Screen.autorotateToLandscapeLeft = false;
+            Screen.autorotateToLandscapeRight = false;
+            Screen.orientation = ScreenOrientation.Portrait;
+        }
 
         public Rect ImageRectToScreenRect(Rect imageRect)
         {
@@ -78,6 +99,12 @@ namespace AR80sRetro
 
         public bool TryUpdateFrame()
         {
+            if (lastUpdatedUnityFrame == Time.frameCount)
+            {
+                return HasFrame;
+            }
+
+            lastUpdatedUnityFrame = Time.frameCount;
             HasFrame = false;
 
             if (cameraManager == null || !cameraManager.TryAcquireLatestCpuImage(out XRCpuImage image))
@@ -87,9 +114,10 @@ namespace AR80sRetro
 
             using (image)
             {
+                lastInputRect = CalculateInputRect(image.width, image.height);
                 XRCpuImage.ConversionParams conversionParams = new XRCpuImage.ConversionParams
                 {
-                    inputRect = new RectInt(0, 0, image.width, image.height),
+                    inputRect = lastInputRect,
                     outputDimensions = new Vector2Int(outputWidth, outputHeight),
                     outputFormat = outputFormat,
                     transformation = XRCpuImage.Transformation.MirrorY
@@ -110,8 +138,78 @@ namespace AR80sRetro
             }
 
             HasFrame = true;
+            FrameTimestampSeconds = Time.realtimeSinceStartupAsDouble;
             FrameReady?.Invoke(cameraTexture);
             return true;
+        }
+
+        public bool TryGetDetectorVerticalFovRadians(Camera fallbackCamera, out float fovRadians)
+        {
+            if (cameraManager != null
+                && cameraManager.TryGetIntrinsics(out XRCameraIntrinsics intrinsics))
+            {
+                bool rotated = frameRotation != FrameRotation.None;
+                float sourceSpan = rotated
+                    ? Mathf.Max(1f, lastInputRect.width)
+                    : Mathf.Max(1f, lastInputRect.height);
+                float focalLength = rotated
+                    ? intrinsics.focalLength.x
+                    : intrinsics.focalLength.y;
+                if (focalLength > 0.001f)
+                {
+                    fovRadians = 2f * Mathf.Atan(sourceSpan / (2f * focalLength));
+                    return true;
+                }
+            }
+
+            if (fallbackCamera != null)
+            {
+                fovRadians = fallbackCamera.fieldOfView * Mathf.Deg2Rad;
+                return true;
+            }
+
+            fovRadians = 0f;
+            return false;
+        }
+
+        public Pose DetectorLocalPoseToCameraLocalPose(Pose detectorPose)
+        {
+            Quaternion imageToCameraRotation;
+            switch (frameRotation)
+            {
+                case FrameRotation.Clockwise90:
+                    imageToCameraRotation = Quaternion.AngleAxis(90f, Vector3.forward);
+                    break;
+                case FrameRotation.CounterClockwise90:
+                    imageToCameraRotation = Quaternion.AngleAxis(-90f, Vector3.forward);
+                    break;
+                default:
+                    imageToCameraRotation = Quaternion.identity;
+                    break;
+            }
+
+            return new Pose(
+                imageToCameraRotation * detectorPose.position,
+                imageToCameraRotation * detectorPose.rotation);
+        }
+
+        private RectInt CalculateInputRect(int sourceWidth, int sourceHeight)
+        {
+            if (!centerCropToOutputAspect || outputWidth <= 0 || outputHeight <= 0)
+            {
+                return new RectInt(0, 0, sourceWidth, sourceHeight);
+            }
+
+            float targetAspect = outputWidth / (float)outputHeight;
+            float sourceAspect = sourceWidth / (float)sourceHeight;
+            if (sourceAspect > targetAspect)
+            {
+                int croppedWidth = Mathf.Max(1, Mathf.RoundToInt(sourceHeight * targetAspect));
+                return new RectInt((sourceWidth - croppedWidth) / 2, 0, croppedWidth, sourceHeight);
+            }
+
+            int croppedHeight = Mathf.Max(1, Mathf.RoundToInt(sourceWidth / targetAspect));
+            return new RectInt(0, (sourceHeight - croppedHeight) / 2, sourceWidth, croppedHeight);
         }
 
         private void UploadConvertedFrame(NativeArray<byte> buffer)

@@ -6,15 +6,22 @@ namespace AR80sRetro
     [Serializable]
     public readonly struct DetectionResult
     {
-        public DetectionResult(string label, float confidence, Rect normalizedBox)
+        public DetectionResult(
+            string label,
+            float confidence,
+            Rect normalizedBox,
+            DetectionMask mask = null)
         {
             Label = label;
             Confidence = confidence;
             NormalizedBox = normalizedBox;
+            Mask = mask;
         }
 
         public string Label { get; }
         public float Confidence { get; }
+        public DetectionMask Mask { get; }
+        public bool HasMask => Mask != null;
 
         // Normalized screen-space box with origin at the top-left.
         public Rect NormalizedBox { get; }

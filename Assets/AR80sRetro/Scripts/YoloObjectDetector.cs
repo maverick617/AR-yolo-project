@@ -22,51 +22,41 @@ namespace AR80sRetro
 
         private readonly struct Candidate
         {
-            public Candidate(Rect box, float confidence, string label)
+            public Candidate(
+                Rect screenBox,
+                Rect modelBox,
+                float confidence,
+                string label,
+                float[] maskCoefficients)
             {
-                Box = box;
+                ScreenBox = screenBox;
+                ModelBox = modelBox;
                 Confidence = confidence;
                 Label = label;
+                MaskCoefficients = maskCoefficients;
             }
 
-            public Rect Box { get; }
+            public Rect ScreenBox { get; }
+            public Rect ModelBox { get; }
             public float Confidence { get; }
             public string Label { get; }
+            public float[] MaskCoefficients { get; }
         }
 
         private const int InputSize = 640;
         private const int CocoClassCount = 80;
-        private const int BottleClassIndex = 39;
         private const int CupClassIndex = 41;
-        private const int ChairClassIndex = 56;
-        private const int CouchClassIndex = 57;
-        private const int PlantClassIndex = 58;
-        private const int TableClassIndex = 60;
-        private const int TvClassIndex = 62;
-        private const int PhoneClassIndex = 67;
-        private const string BottleLabel = "bottle";
         private const string CupLabel = "cup";
-        private const string ChairLabel = "chair";
-        private const string CouchLabel = "couch";
-        private const string PlantLabel = "plant";
-        private const string TableLabel = "table";
-        private const string TvLabel = "tv";
-        private const string PhoneLabel = "phone";
 
         private static readonly TargetClass[] TargetClasses =
         {
-            new TargetClass(BottleClassIndex, BottleLabel),
-            new TargetClass(CupClassIndex, CupLabel),
-            new TargetClass(ChairClassIndex, ChairLabel),
-            new TargetClass(CouchClassIndex, CouchLabel),
-            new TargetClass(PlantClassIndex, PlantLabel),
-            new TargetClass(TableClassIndex, TableLabel),
-            new TargetClass(TvClassIndex, TvLabel),
-            new TargetClass(PhoneClassIndex, PhoneLabel)
+            new TargetClass(CupClassIndex, CupLabel)
         };
 
         [Header("Dependencies")]
         [SerializeField] private ModelAsset modelAsset;
+        [Tooltip("Optional YOLO segmentation ONNX. When assigned, it replaces the detection-only model and supplies a cup mask.")]
+        [SerializeField] private ModelAsset segmentationModelAsset;
         [SerializeField] private ARCameraFrameProvider frameProvider;
 
         [Header("Inference")]
@@ -77,6 +67,8 @@ namespace AR80sRetro
         [SerializeField, Min(1)] private int maxDetections = 12;
         [SerializeField] private bool logDetections = true;
         [SerializeField, Min(1)] private int diagnosticLogInterval = 10;
+        [SerializeField, Range(24, 160)] private int segmentationMaskResolution = 64;
+        [SerializeField, Range(0.05f, 0.95f)] private float segmentationMaskThreshold = 0.5f;
 
         public event Action<IReadOnlyList<DetectionResult>> DetectionsReady;
 
@@ -91,6 +83,7 @@ namespace AR80sRetro
         private bool hasLoggedOutputShape;
         private bool initializationFailed;
         private int inferenceCount;
+        private int runtimeOutputCount;
 
         private void Reset()
         {
@@ -131,14 +124,19 @@ namespace AR80sRetro
                 return false;
             }
 
-            if (modelAsset == null || frameProvider == null)
+            if ((modelAsset == null && segmentationModelAsset == null)
+                || frameProvider == null)
             {
                 return false;
             }
 
             try
             {
-                Model runtimeModel = ModelLoader.Load(modelAsset);
+                ModelAsset selectedModelAsset = segmentationModelAsset != null
+                    ? segmentationModelAsset
+                    : modelAsset;
+                Model runtimeModel = ModelLoader.Load(selectedModelAsset);
+                runtimeOutputCount = runtimeModel.outputs.Count;
                 BackendType selectedBackend = backendType;
                 if (selectedBackend == BackendType.GPUCompute && !SystemInfo.supportsComputeShaders)
                 {
@@ -148,7 +146,24 @@ namespace AR80sRetro
 
                 worker = new Worker(runtimeModel, selectedBackend);
                 inputTensor = new Tensor<float>(new TensorShape(1, 3, InputSize, InputSize));
-                Debug.Log($"YOLO initialized with {selectedBackend} backend.", this);
+                Debug.Log(
+                    $"YOLO initialized with {selectedBackend} backend; "
+                    + $"mode={(segmentationModelAsset != null ? "segmentation" : "detection")}, "
+                    + $"outputs={runtimeOutputCount}.",
+                    this);
+                if (segmentationModelAsset == null)
+                {
+                    Debug.LogWarning(
+                        "Cup segmentation ONNX is not assigned. Dynamic sizing is using the detector-box/depth fallback, not a pixel mask.",
+                        this);
+                }
+                else if (runtimeOutputCount < 2)
+                {
+                    Debug.LogWarning(
+                        "The assigned segmentation model has fewer than two outputs. This parser expects standard YOLOv8-seg detection and prototype outputs.",
+                        this);
+                }
+
                 return true;
             }
             catch (Exception exception)
@@ -180,13 +195,22 @@ namespace AR80sRetro
 
                 using (Tensor<float> cpuOutput = output.ReadbackAndClone())
                 {
-                    if (!hasLoggedOutputShape)
+                    Tensor<float> prototypeOutput = runtimeOutputCount > 1
+                        ? worker.PeekOutput(1) as Tensor<float>
+                        : null;
+                    if (prototypeOutput != null)
                     {
-                        hasLoggedOutputShape = true;
-                        Debug.Log($"YOLO output shape: {cpuOutput.shape}", this);
+                        using (Tensor<float> cpuPrototypes = prototypeOutput.ReadbackAndClone())
+                        {
+                            LogOutputShapes(cpuOutput, cpuPrototypes);
+                            ParseTargetDetections(cpuOutput, cpuPrototypes);
+                        }
                     }
-
-                    ParseTargetDetections(cpuOutput);
+                    else
+                    {
+                        LogOutputShapes(cpuOutput, null);
+                        ParseTargetDetections(cpuOutput, null);
+                    }
                 }
 
                 inferenceCount++;
@@ -198,7 +222,26 @@ namespace AR80sRetro
             }
         }
 
-        private void ParseTargetDetections(Tensor<float> output)
+        private void LogOutputShapes(
+            Tensor<float> detections,
+            Tensor<float> prototypes)
+        {
+            if (hasLoggedOutputShape)
+            {
+                return;
+            }
+
+            hasLoggedOutputShape = true;
+            Debug.Log(
+                prototypes != null
+                    ? $"YOLO output shapes: detections={detections.shape}, masks={prototypes.shape}"
+                    : $"YOLO output shape: {detections.shape}",
+                this);
+        }
+
+        private void ParseTargetDetections(
+            Tensor<float> output,
+            Tensor<float> maskPrototypes)
         {
             candidates.Clear();
             selectedCandidates.Clear();
@@ -212,19 +255,23 @@ namespace AR80sRetro
 
             int dimensionOne = output.shape[1];
             int dimensionTwo = output.shape[2];
-            int expectedChannels = CocoClassCount + 4;
-            bool channelsFirst = dimensionOne == expectedChannels;
-            bool channelsLast = dimensionTwo == expectedChannels;
+            int detectionChannels = CocoClassCount + 4;
+            bool channelsFirst = dimensionOne >= detectionChannels
+                && dimensionOne <= detectionChannels + 64;
+            bool channelsLast = dimensionTwo >= detectionChannels
+                && dimensionTwo <= detectionChannels + 64;
 
             if (!channelsFirst && !channelsLast)
             {
                 Debug.LogError(
-                    $"Expected YOLO output [1,84,N] or [1,N,84], received {output.shape}.",
+                    $"Expected a YOLO detection/segmentation output with at least 84 channels, received {output.shape}.",
                     this);
                 return;
             }
 
             int boxCount = channelsFirst ? dimensionTwo : dimensionOne;
+            int channelCount = channelsFirst ? dimensionOne : dimensionTwo;
+            int maskCoefficientCount = channelCount - detectionChannels;
             ReadOnlySpan<float> values = output.AsReadOnlySpan();
             float highestAnyConfidence = 0f;
             int highestClassIndex = -1;
@@ -241,6 +288,7 @@ namespace AR80sRetro
                         values,
                         channelsFirst,
                         boxCount,
+                        channelCount,
                         boxIndex,
                         classIndex + 4);
 
@@ -258,6 +306,7 @@ namespace AR80sRetro
                         values,
                         channelsFirst,
                         boxCount,
+                        channelCount,
                         boxIndex,
                         targetClass.Index + 4);
 
@@ -277,16 +326,16 @@ namespace AR80sRetro
                     continue;
                 }
 
-                float centerX = ReadOutput(values, channelsFirst, boxCount, boxIndex, 0);
-                float centerY = ReadOutput(values, channelsFirst, boxCount, boxIndex, 1);
-                float width = ReadOutput(values, channelsFirst, boxCount, boxIndex, 2);
-                float height = ReadOutput(values, channelsFirst, boxCount, boxIndex, 3);
+                float centerX = ReadOutput(values, channelsFirst, boxCount, channelCount, boxIndex, 0);
+                float centerY = ReadOutput(values, channelsFirst, boxCount, channelCount, boxIndex, 1);
+                float width = ReadOutput(values, channelsFirst, boxCount, channelCount, boxIndex, 2);
+                float height = ReadOutput(values, channelsFirst, boxCount, channelCount, boxIndex, 3);
 
-                Rect normalizedBox = new Rect(
+                Rect normalizedBox = Rect.MinMaxRect(
                     Mathf.Clamp01((centerX - width * 0.5f) / InputSize),
                     Mathf.Clamp01((centerY - height * 0.5f) / InputSize),
-                    Mathf.Clamp01(width / InputSize),
-                    Mathf.Clamp01(height / InputSize));
+                    Mathf.Clamp01((centerX + width * 0.5f) / InputSize),
+                    Mathf.Clamp01((centerY + height * 0.5f) / InputSize));
 
                 if (normalizedBox.width <= 0f || normalizedBox.height <= 0f)
                 {
@@ -294,7 +343,30 @@ namespace AR80sRetro
                 }
 
                 Rect screenBox = frameProvider.ImageRectToScreenRect(normalizedBox);
-                candidates.Add(new Candidate(screenBox, targetConfidence, targetLabel));
+                float[] maskCoefficients = null;
+                if (maskCoefficientCount > 0 && maskPrototypes != null)
+                {
+                    maskCoefficients = new float[maskCoefficientCount];
+                    for (int coefficientIndex = 0;
+                        coefficientIndex < maskCoefficientCount;
+                        coefficientIndex++)
+                    {
+                        maskCoefficients[coefficientIndex] = ReadOutput(
+                            values,
+                            channelsFirst,
+                            boxCount,
+                            channelCount,
+                            boxIndex,
+                            detectionChannels + coefficientIndex);
+                    }
+                }
+
+                candidates.Add(new Candidate(
+                    screenBox,
+                    normalizedBox,
+                    targetConfidence,
+                    targetLabel,
+                    maskCoefficients));
             }
 
             if (diagnosticLogInterval > 0 && inferenceCount % diagnosticLogInterval == 0)
@@ -313,7 +385,12 @@ namespace AR80sRetro
             for (int i = 0; i < resultCount; i++)
             {
                 Candidate candidate = selectedCandidates[i];
-                detectionResults.Add(new DetectionResult(candidate.Label, candidate.Confidence, candidate.Box));
+                DetectionMask mask = BuildDetectionMask(candidate, maskPrototypes);
+                detectionResults.Add(new DetectionResult(
+                    candidate.Label,
+                    candidate.Confidence,
+                    candidate.ScreenBox,
+                    mask));
             }
 
             if (logDetections && detectionResults.Count > 0)
@@ -340,7 +417,9 @@ namespace AR80sRetro
                         continue;
                     }
 
-                    if (CalculateIntersectionOverUnion(candidate.Box, selected.Box) > iouThreshold)
+                    if (CalculateIntersectionOverUnion(
+                        candidate.ScreenBox,
+                        selected.ScreenBox) > iouThreshold)
                     {
                         overlapsSelected = true;
                         break;
@@ -363,12 +442,92 @@ namespace AR80sRetro
             ReadOnlySpan<float> values,
             bool channelsFirst,
             int boxCount,
+            int channelCount,
             int boxIndex,
             int channelIndex)
         {
             return channelsFirst
                 ? values[channelIndex * boxCount + boxIndex]
-                : values[boxIndex * (CocoClassCount + 4) + channelIndex];
+                : values[boxIndex * channelCount + channelIndex];
+        }
+
+        private DetectionMask BuildDetectionMask(
+            Candidate candidate,
+            Tensor<float> prototypes)
+        {
+            float[] coefficients = candidate.MaskCoefficients;
+            if (prototypes == null
+                || coefficients == null
+                || coefficients.Length == 0
+                || prototypes.shape.rank != 4
+                || prototypes.shape[0] != 1)
+            {
+                return null;
+            }
+
+            bool channelsFirst = prototypes.shape[1] == coefficients.Length;
+            bool channelsLast = prototypes.shape[3] == coefficients.Length;
+            if (!channelsFirst && !channelsLast)
+            {
+                return null;
+            }
+
+            int prototypeHeight = channelsFirst
+                ? prototypes.shape[2]
+                : prototypes.shape[1];
+            int prototypeWidth = channelsFirst
+                ? prototypes.shape[3]
+                : prototypes.shape[2];
+            int resolution = Mathf.Max(8, segmentationMaskResolution);
+            byte[] mask = new byte[resolution * resolution];
+            ReadOnlySpan<float> prototypeValues = prototypes.AsReadOnlySpan();
+
+            for (int y = 0; y < resolution; y++)
+            {
+                float v = (y + 0.5f) / resolution;
+                float imageY = Mathf.Lerp(
+                    candidate.ModelBox.yMin,
+                    candidate.ModelBox.yMax,
+                    v);
+                int prototypeY = Mathf.Clamp(
+                    Mathf.FloorToInt(imageY * prototypeHeight),
+                    0,
+                    prototypeHeight - 1);
+
+                for (int x = 0; x < resolution; x++)
+                {
+                    float u = (x + 0.5f) / resolution;
+                    float imageX = Mathf.Lerp(
+                        candidate.ModelBox.xMin,
+                        candidate.ModelBox.xMax,
+                        u);
+                    int prototypeX = Mathf.Clamp(
+                        Mathf.FloorToInt(imageX * prototypeWidth),
+                        0,
+                        prototypeWidth - 1);
+                    float logit = 0f;
+                    for (int channel = 0; channel < coefficients.Length; channel++)
+                    {
+                        int index = channelsFirst
+                            ? ((channel * prototypeHeight) + prototypeY)
+                                * prototypeWidth + prototypeX
+                            : ((prototypeY * prototypeWidth) + prototypeX)
+                                * coefficients.Length + channel;
+                        logit += coefficients[channel] * prototypeValues[index];
+                    }
+
+                    float probability = 1f / (1f + Mathf.Exp(-logit));
+                    mask[y * resolution + x] = probability >= segmentationMaskThreshold
+                        ? (byte)255
+                        : (byte)0;
+                }
+            }
+
+            return new DetectionMask(
+                candidate.ScreenBox,
+                resolution,
+                resolution,
+                mask);
         }
 
         private static string FormatTargetScores(float[] scores)

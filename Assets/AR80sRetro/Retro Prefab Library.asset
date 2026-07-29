@@ -20,16 +20,16 @@ MonoBehaviour:
     raycastAnchorInBoundingBox: {x: 0.5, y: 0.85}
     rotationOffsetEuler: {x: 0, y: 180, z: 0}
     scaleCalibrationMultiplier: 1.4
-    minConfidence: 0.6
-    trackingMinConfidence: 0.35
-    confirmationFrames: 2
+    minConfidence: 0.45
+    trackingMinConfidence: 0.3
+    confirmationFrames: 1
     positionSmoothing: 0.18
     estimateScaleFromBoundingBox: 1
     scaleBoundingBoxAxis: 2
     estimatedHeightMultiplier: 0.9
     estimatedWidthMultiplier: 0.9
     scaleMultiplierRange: {x: 0.25, y: 8}
-    useAprilTagPose: 0
+    useAprilTagPose: 1
     aprilTagId: -1
     aprilTagTrackedImageName: 
     aprilTagToObjectOffsetMeters: {x: 0, y: 0, z: 0}
@@ -37,26 +37,58 @@ MonoBehaviour:
     aprilTagMaxPoseAgeSeconds: 0.35
   - detectionLabel: cup
     prefab: {fileID: 6759112859541804290, guid: 422aab88cfa072f47b4339b9d444bd03, type: 3}
-    spawnScale: {x: 10, y: 12, z: 10}
+    spawnScale: {x: 10, y: 10, z: 10}
     verticalOffsetMeters: 0
     raycastAnchorInBoundingBox: {x: 0.5, y: 0.95}
-    rotationOffsetEuler: {x: 0, y: 180, z: 0}
+    rotationOffsetEuler: {x: 0, y: 0, z: 0}
     scaleCalibrationMultiplier: 1
-    minConfidence: 0.6
-    trackingMinConfidence: 0.35
-    confirmationFrames: 2
+    minConfidence: 0.45
+    trackingMinConfidence: 0.3
+    confirmationFrames: 1
     positionSmoothing: 0.18
     estimateScaleFromBoundingBox: 1
     scaleBoundingBoxAxis: 0
     estimatedHeightMultiplier: 0.9
     estimatedWidthMultiplier: 0.9
     scaleMultiplierRange: {x: 0.25, y: 4}
-    useAprilTagPose: 0
-    aprilTagId: -1
+    useAprilTagPose: 1
+    aprilTagId: 0
     aprilTagTrackedImageName: 
     aprilTagToObjectOffsetMeters: {x: 0, y: 0, z: 0}
-    aprilTagToObjectRotationEuler: {x: 0, y: 0, z: 0}
+    aprilTagToObjectRotationEuler: {x: 0, y: -90, z: 0}
     aprilTagMaxPoseAgeSeconds: 0.35
+    additionalAprilTagMounts:
+    - tagId: 1
+      trackedImageName: 
+      tagToObjectRotationEuler: {x: 0, y: 150, z: 0}
+      overrideCupCenterOffset: 0
+      tagToCupCenterDirection: {x: 0, y: 0, z: 1}
+      useCupHeightForCenterDistance: 0
+      tagMountStandoffMeters: 0
+    - tagId: 2
+      trackedImageName: 
+      tagToObjectRotationEuler: {x: 0, y: 30, z: 0}
+      overrideCupCenterOffset: 0
+      tagToCupCenterDirection: {x: 0, y: 0, z: 1}
+      useCupHeightForCenterDistance: 0
+      tagMountStandoffMeters: 0
+    - tagId: 3
+      trackedImageName: 
+      tagToObjectRotationEuler: {x: 0, y: 90, z: 90}
+      overrideCupCenterOffset: 1
+      tagToCupCenterDirection: {x: 0, y: 0, z: 1}
+      useCupHeightForCenterDistance: 1
+      tagMountStandoffMeters: 0
+    enableAutomaticCupRegistration: 0
+    cupRegistrationSamples: 5
+    minimumRegistrationViewAngleDegrees: 0
+    minimumRegistrationMeasurementConfidence: 0.25
+    useStandardCupTagMount: 1
+    tagToCupCenterDirection: {x: 0, y: 0, z: 1}
+    tagMountStandoffMeters: 0
+    fitMeasuredWidthAndHeight: 1
+    maximumNonUniformScaleRatio: 1.8
+    tagLostVisualFallbackSeconds: 0.8
   - detectionLabel: tv
     prefab: {fileID: 3860385251880703525, guid: 275e51c1632a68a4da78c6ecfdfdc17f, type: 3}
     spawnScale: {x: 10, y: 10, z: 10}
@@ -64,16 +96,16 @@ MonoBehaviour:
     raycastAnchorInBoundingBox: {x: 0.5, y: 0.95}
     rotationOffsetEuler: {x: 0, y: 180, z: 0}
     scaleCalibrationMultiplier: 1.5
-    minConfidence: 0.6
-    trackingMinConfidence: 0.35
-    confirmationFrames: 2
+    minConfidence: 0.45
+    trackingMinConfidence: 0.3
+    confirmationFrames: 1
     positionSmoothing: 0.18
     estimateScaleFromBoundingBox: 1
     scaleBoundingBoxAxis: 2
     estimatedHeightMultiplier: 0.9
     estimatedWidthMultiplier: 1
     scaleMultiplierRange: {x: 0.25, y: 8}
-    useAprilTagPose: 0
+    useAprilTagPose: 1
     aprilTagId: -1
     aprilTagTrackedImageName: 
     aprilTagToObjectOffsetMeters: {x: 0, y: 0, z: 0}
@@ -86,9 +118,9 @@ MonoBehaviour:
     raycastAnchorInBoundingBox: {x: 0.5, y: 0.95}
     rotationOffsetEuler: {x: 0, y: 180, z: 0}
     scaleCalibrationMultiplier: 1.4
-    minConfidence: 0.6
-    trackingMinConfidence: 0.35
-    confirmationFrames: 2
+    minConfidence: 0.45
+    trackingMinConfidence: 0.3
+    confirmationFrames: 1
     positionSmoothing: 0.18
     estimateScaleFromBoundingBox: 1
     scaleBoundingBoxAxis: 0
@@ -96,7 +128,7 @@ MonoBehaviour:
     estimatedWidthMultiplier: 0.9
     scaleMultiplierRange: {x: 0.25, y: 8}
     useAprilTagPose: 1
-    aprilTagId: 0
+    aprilTagId: -1
     aprilTagTrackedImageName: 
     aprilTagToObjectOffsetMeters: {x: 0, y: 0, z: 0}
     aprilTagToObjectRotationEuler: {x: 0, y: 0, z: 0}
@@ -108,16 +140,16 @@ MonoBehaviour:
     raycastAnchorInBoundingBox: {x: 0.5, y: 0.95}
     rotationOffsetEuler: {x: 0, y: 180, z: 0}
     scaleCalibrationMultiplier: 1.8
-    minConfidence: 0.6
-    trackingMinConfidence: 0.35
-    confirmationFrames: 2
+    minConfidence: 0.45
+    trackingMinConfidence: 0.3
+    confirmationFrames: 1
     positionSmoothing: 0.18
     estimateScaleFromBoundingBox: 1
     scaleBoundingBoxAxis: 2
     estimatedHeightMultiplier: 1
     estimatedWidthMultiplier: 1.1
     scaleMultiplierRange: {x: 0.25, y: 10}
-    useAprilTagPose: 0
+    useAprilTagPose: 1
     aprilTagId: -1
     aprilTagTrackedImageName: 
     aprilTagToObjectOffsetMeters: {x: 0, y: 0, z: 0}
@@ -130,16 +162,16 @@ MonoBehaviour:
     raycastAnchorInBoundingBox: {x: 0.5, y: 0.95}
     rotationOffsetEuler: {x: 0, y: 180, z: 0}
     scaleCalibrationMultiplier: 2
-    minConfidence: 0.6
-    trackingMinConfidence: 0.35
-    confirmationFrames: 2
+    minConfidence: 0.45
+    trackingMinConfidence: 0.3
+    confirmationFrames: 1
     positionSmoothing: 0.18
     estimateScaleFromBoundingBox: 1
     scaleBoundingBoxAxis: 2
     estimatedHeightMultiplier: 1
     estimatedWidthMultiplier: 1.15
     scaleMultiplierRange: {x: 0.25, y: 12}
-    useAprilTagPose: 0
+    useAprilTagPose: 1
     aprilTagId: -1
     aprilTagTrackedImageName: 
     aprilTagToObjectOffsetMeters: {x: 0, y: 0, z: 0}
@@ -152,16 +184,16 @@ MonoBehaviour:
     raycastAnchorInBoundingBox: {x: 0.5, y: 0.95}
     rotationOffsetEuler: {x: 0, y: 180, z: 0}
     scaleCalibrationMultiplier: 1.6
-    minConfidence: 0.6
-    trackingMinConfidence: 0.35
-    confirmationFrames: 2
+    minConfidence: 0.45
+    trackingMinConfidence: 0.3
+    confirmationFrames: 1
     positionSmoothing: 0.18
     estimateScaleFromBoundingBox: 1
     scaleBoundingBoxAxis: 2
     estimatedHeightMultiplier: 1
     estimatedWidthMultiplier: 1
     scaleMultiplierRange: {x: 0.25, y: 8}
-    useAprilTagPose: 0
+    useAprilTagPose: 1
     aprilTagId: -1
     aprilTagTrackedImageName: 
     aprilTagToObjectOffsetMeters: {x: 0, y: 0, z: 0}
@@ -174,16 +206,16 @@ MonoBehaviour:
     raycastAnchorInBoundingBox: {x: 0.5, y: 0.95}
     rotationOffsetEuler: {x: 0, y: 180, z: 0}
     scaleCalibrationMultiplier: 2
-    minConfidence: 0.6
-    trackingMinConfidence: 0.35
-    confirmationFrames: 2
+    minConfidence: 0.45
+    trackingMinConfidence: 0.3
+    confirmationFrames: 1
     positionSmoothing: 0.18
     estimateScaleFromBoundingBox: 1
     scaleBoundingBoxAxis: 2
     estimatedHeightMultiplier: 1
     estimatedWidthMultiplier: 1.15
     scaleMultiplierRange: {x: 0.25, y: 12}
-    useAprilTagPose: 0
+    useAprilTagPose: 1
     aprilTagId: -1
     aprilTagTrackedImageName: 
     aprilTagToObjectOffsetMeters: {x: 0, y: 0, z: 0}

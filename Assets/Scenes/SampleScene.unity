@@ -169,8 +169,8 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: fe87c0e1cc204ed48ad3b37840f39efc, type: 3}
-  m_Name:
-  m_EditorClassIdentifier:
+  m_Name: 
+  m_EditorClassIdentifier: 
   m_Material: {fileID: 0}
   m_Color: {r: 0.34901962, g: 0.34901962, b: 0.34901962, a: 1}
   m_RaycastTarget: 1
@@ -282,8 +282,8 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: fe87c0e1cc204ed48ad3b37840f39efc, type: 3}
-  m_Name:
-  m_EditorClassIdentifier:
+  m_Name: 
+  m_EditorClassIdentifier: 
   m_Material: {fileID: 0}
   m_Color: {r: 0.16078432, g: 0.16078432, b: 0.16078432, a: 1}
   m_RaycastTarget: 1
@@ -6193,6 +6193,10 @@ GameObject:
   - component: {fileID: 1702211330}
   - component: {fileID: 1702211333}
   - component: {fileID: 1702211334}
+  - component: {fileID: 1702211335}
+  - component: {fileID: 1702211336}
+  - component: {fileID: 1702211337}
+  - component: {fileID: 1702211338}
   m_Layer: 0
   m_Name: AR80sRetro System
   m_TagString: Untagged
@@ -6235,16 +6239,26 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   prefabLibrary: {fileID: 11400000, guid: df732f077e94bdc4c8fa6bdd09da7c2c, type: 2}
   positionSolver: {fileID: 1702211326}
+  aprilTagPoseSource: {fileID: 1702211335}
+  cupProfileStore: {fileID: 1702211337}
+  cupDimensionEstimator: {fileID: 1702211338}
   contentRoot: {fileID: 1702211327}
   arCamera: {fileID: 331264287}
+  preferAprilTagPose: 1
+  autoConfigureAprilTagTracking: 1
+  requireAprilTagPoseForTaggedRules: 1
+  cupDemoOnly: 1
+  rotationFollowSpeed: 14
+  tagHandoverFreshnessSeconds: 0.12
+  visualFallbackMaxViewportDistance: 0.24
+  lostStateDelaySeconds: 1.2
   destroyWhenLost: 0
-  lostGraceSeconds: 1
-  lostStateDelaySeconds: 1
-  reacquireMatchRadiusMeters: 0.4
-  duplicateRadiusMeters: 0.25
-  movementDeadZoneMeters: 0.05
-  movementConfirmationFrames: 3
-  movementSmoothTime: 0.25
+  destroyAfterLostSeconds: 5
+  yoloScreenHeightFill: 0.96
+  maximumYoloScreenScaleCorrection: 10
+  logReplacementDiagnostics: 1
+  diagnosticLogIntervalSeconds: 1
+  showCupDemoStatus: 1
 --- !u!114 &1702211326
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -6311,6 +6325,8 @@ MonoBehaviour:
   outputHeight: 480
   outputFormat: 3
   frameRotation: 1
+  centerCropToOutputAspect: 1
+  lockToPortrait: 1
   screenOffsetNormalized: {x: 0, y: 0}
   screenScale: {x: 1, y: 1}
 --- !u!114 &1702211330
@@ -6355,14 +6371,17 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   modelAsset: {fileID: 5022602860645237092, guid: 5a65458920e38b24abedefba87ef12d2, type: 3}
+  segmentationModelAsset: {fileID: 0}
   frameProvider: {fileID: 1702211329}
   backendType: 256
   inferenceIntervalSeconds: 0.25
-  confidenceThreshold: 0.25
+  confidenceThreshold: 0.45
   iouThreshold: 0.45
   maxDetections: 12
   logDetections: 1
   diagnosticLogInterval: 10
+  segmentationMaskResolution: 64
+  segmentationMaskThreshold: 0.5
 --- !u!114 &1702211333
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -6373,8 +6392,8 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: b15f82cc229284894964d2d30806969d, type: 3}
-  m_Name:
-  m_EditorClassIdentifier:
+  m_Name: 
+  m_EditorClassIdentifier: 
   m_HumanSegmentationStencilMode: 0
   m_HumanSegmentationDepthMode: 0
   m_EnvironmentDepthMode: 1
@@ -6390,9 +6409,10 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 6d4e527a80a549e7ae27d6e5a5df81ce, type: 3}
-  m_Name:
-  m_EditorClassIdentifier:
+  m_Name: 
+  m_EditorClassIdentifier: 
   occlusionManager: {fileID: 1702211333}
+  cameraManager: {fileID: 608830360}
   arCamera: {fileID: 331264287}
   requestedDepthMode: 1
   requestTemporalSmoothing: 1
@@ -6401,8 +6421,86 @@ MonoBehaviour:
   maxDepthMeters: 8
   minConfidence: 1
   flipDepthX: 0
-  flipDepthY: 1
+  flipDepthY: 0
   logDepthAvailability: 0
+  measurementGridSize: 17
+  measurementBoxInset: 0.035
+  measurementDepthToleranceMeters: 0.04
+  measurementRelativeDepthTolerance: 0.06
+  minimumMeasurementSamples: 24
+--- !u!114 &1702211335
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1702211323}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f1d4b4a07be45714faf91ae8e3ea7578, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  arCamera: {fileID: 331264287}
+  trackedImageManager: {fileID: 0}
+  bindings: []
+  defaultMaxPoseAgeSeconds: 0.6
+  detectionBoxPadding: 0.18
+  maxViewportCenterDistance: 0.55
+  allowSingleVisibleTagFallback: 1
+  logPoseUpdates: 0
+--- !u!114 &1702211336
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1702211323}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e101a34442ef2004482d45becd9bc190, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  frameProvider: {fileID: 1702211329}
+  poseSource: {fileID: 1702211335}
+  arCamera: {fileID: 331264287}
+  tagSizeMeters: 0.01
+  decimation: 1
+  detectionIntervalSeconds: 0.05
+  compensateFrameRotation: 0
+  detectorToCameraRotationCorrectionEuler: {x: 0, y: 0, z: 0}
+  logDetectedTags: 1
+--- !u!114 &1702211337
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1702211323}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ac93d734831c4f0dbd44175cc9b6acee, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  storageKey: ar80sretro.cup-profiles.v3
+  logProfileChanges: 1
+--- !u!114 &1702211338
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1702211323}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b7035f166abf4d4aa4d3c15a371eac76, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  depthProvider: {fileID: 1702211334}
+  arCamera: {fileID: 331264287}
+  minimumCupDimensionMeters: 0.03
+  maximumCupDimensionMeters: 0.6
+  fallbackHeightMultiplier: 0.94
+  fallbackWidthMultiplier: 0.82
 --- !u!1 &1756045394
 GameObject:
   m_ObjectHideFlags: 0
