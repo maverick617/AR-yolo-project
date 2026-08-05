@@ -3,16 +3,16 @@ using UnityEngine;
 namespace AR80sRetro
 {
     /// <summary>
-    /// Uses the YOLO cup box as the size envelope. Environment depth is preferred
+    /// Uses the YOLO object box as the size envelope. Environment depth is preferred
     /// only to convert that screen envelope into metres. If depth is unavailable,
-    /// the Tag pose supplies camera distance, but never supplies the cup extent.
+    /// the Tag pose supplies camera distance, but never supplies the object extent.
     /// </summary>
     public sealed class CupDimensionEstimator : MonoBehaviour
     {
         [SerializeField] private ARDepthFrameProvider depthProvider;
         [SerializeField] private Camera arCamera;
         [SerializeField, Min(0.01f)] private float minimumCupDimensionMeters = 0.03f;
-        [SerializeField, Min(0.05f)] private float maximumCupDimensionMeters = 0.6f;
+        [SerializeField, Min(0.05f)] private float maximumCupDimensionMeters = 3f;
         [SerializeField, Range(0.5f, 1.5f)] private float fallbackHeightMultiplier = 0.94f;
         [SerializeField, Range(0.4f, 1.2f)] private float fallbackWidthMultiplier = 0.82f;
 

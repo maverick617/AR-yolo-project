@@ -16,9 +16,9 @@ namespace AR80sRetroEditor
             "Assets/AR80sRetro/Models/YOLO/yolov8n-seg.onnx";
         private const string PrefabLibraryPath = "Assets/AR80sRetro/Retro Prefab Library.asset";
         private const string BuildScenePath = "Assets/Scenes/SampleScene.unity";
-        private const float CupTagSizeMeters = 0.01f;
+        private const float ObjectTagSizeMeters = 0.01f;
 
-        [MenuItem("Tools/AR 80s Retro/Configure Build Scene (4-Tag Cup)")]
+        [MenuItem("Tools/AR 80s Retro/Configure Build Scene (Multi-Object)")]
         public static void ConfigureBuildScene()
         {
             UnityEngine.SceneManagement.Scene scene = EditorSceneManager.OpenScene(
@@ -76,6 +76,39 @@ namespace AR80sRetroEditor
 
             if (!ValidateCupMountGeometry(cupRule))
             {
+                return;
+            }
+
+            if (!prefabLibrary.TryGetRule("phone", out RetroReplacementRule phoneRule)
+                || !phoneRule.IsAprilTagMatch(4, null)
+                || !phoneRule.IsAprilTagMatch(5, null)
+                || !prefabLibrary.TryGetRule("tv", out RetroReplacementRule tvRule)
+                || !tvRule.IsAprilTagMatch(6, null))
+            {
+                Debug.LogError(
+                    "Phone must use AprilTag IDs 4/5 and TV/display must use AprilTag ID 6.");
+                return;
+            }
+
+            if (!ValidatePhoneMountGeometry(phoneRule))
+            {
+                return;
+            }
+
+            if (!prefabLibrary.TryGetRule("pen", out RetroReplacementRule penRule)
+                || penRule.Prefab == null
+                || !penRule.TrackFromAprilTagWithoutYolo
+                || !penRule.IsAprilTagMatch(12, null))
+            {
+                Debug.LogError(
+                    "Pen must have a valid Prefab and use AprilTag ID 12 "
+                    + "with Tag-only tracking enabled.");
+                return;
+            }
+
+            if (!prefabLibrary.TryValidateUniqueAprilTagIds(out string tagError))
+            {
+                Debug.LogError($"AprilTag allocation is invalid: {tagError}");
                 return;
             }
 
@@ -150,7 +183,7 @@ namespace AR80sRetroEditor
             AssignBoolean(replacementManager, "preferAprilTagPose", true);
             AssignBoolean(replacementManager, "autoConfigureAprilTagTracking", true);
             AssignBoolean(replacementManager, "requireAprilTagPoseForTaggedRules", true);
-            AssignBoolean(replacementManager, "cupDemoOnly", true);
+            AssignBoolean(replacementManager, "cupDemoOnly", false);
             AssignFloat(replacementManager, "tagHandoverFreshnessSeconds", 0.12f);
             AssignFloat(replacementManager, "yoloScreenHeightFill", 0.96f);
             AssignFloat(replacementManager, "maximumYoloScreenScaleCorrection", 10f);
@@ -162,12 +195,13 @@ namespace AR80sRetroEditor
             AssignObjectReference(depthProvider, "arCamera", arCamera);
             AssignObjectReference(dimensionEstimator, "depthProvider", depthProvider);
             AssignObjectReference(dimensionEstimator, "arCamera", arCamera);
+            AssignFloat(dimensionEstimator, "maximumCupDimensionMeters", 3f);
             AssignObjectReference(aprilTagPoseSource, "arCamera", arCamera);
             AssignObjectReference(aprilTagPoseSource, "trackedImageManager", trackedImageManager);
             AssignObjectReference(aprilTagDetector, "frameProvider", frameProvider);
             AssignObjectReference(aprilTagDetector, "poseSource", aprilTagPoseSource);
             AssignObjectReference(aprilTagDetector, "arCamera", arCamera);
-            AssignFloat(aprilTagDetector, "tagSizeMeters", CupTagSizeMeters);
+            AssignFloat(aprilTagDetector, "tagSizeMeters", ObjectTagSizeMeters);
             AssignInteger(aprilTagDetector, "decimation", 1);
             // ARCameraFrameProvider already rotates the CPU image into the
             // portrait detector texture. Applying frameRotation again to the
@@ -185,7 +219,12 @@ namespace AR80sRetroEditor
             EditorSceneManager.MarkSceneDirty(systemObject.scene);
             Selection.activeGameObject = systemObject;
 
-            Debug.Log("Four-tag Cup scene configuration completed. Side Tag 0/1/2 and bottom Tag 3 share one cup track, guided camera scanning is disabled, mock input and camera render-occlusion are disabled, and environment depth remains available for measurement. Save the scene before building.");
+            Debug.Log(
+                "Multi-object scene configuration completed. Cup uses Tag 0-3, "
+                + "phone uses Tag 4/5, TV/display uses Tag 6, and every remaining "
+                + "configured class has a unique Tag ID. Mock input and camera "
+                + "render-occlusion are disabled, while environment depth remains "
+                + "available for object sizing. Save the scene before building.");
         }
 
         private static bool ValidateCupMountGeometry(RetroReplacementRule cupRule)
@@ -195,6 +234,7 @@ namespace AR80sRetroEditor
             {
                 // Common cup frame: +Y points to the rim and +X points to the handle.
                 // Keijiro Tag +Z points through the printed front into the object.
+                // Tag local +Y follows the unrotated official PNG's top edge.
                 // The three side Tags are mounted at 9, 1 and 5 o'clock, so their
                 // local +Z axes point radially inward.
                 Quaternion.LookRotation(Vector3.right, Vector3.up),
@@ -253,6 +293,52 @@ namespace AR80sRetroEditor
             Debug.Log(
                 "Cup mount geometry validated: side Tag 0/1/2 and bottom Tag 3 "
                 + "all recover the same upright, handle-aligned cup frame.");
+            return true;
+        }
+
+        private static bool ValidatePhoneMountGeometry(
+            RetroReplacementRule phoneRule)
+        {
+            int[] tagIds = { 4, 5 };
+            Quaternion[] installedTagRotations =
+            {
+                // Phone +Z runs from the back toward the screen. Each Tag +Z
+                // points through its printed face into the phone. Both local +Y
+                // axes follow the unrotated official PNG top toward the phone top.
+                Quaternion.identity,
+                Quaternion.Euler(0f, 180f, 0f)
+            };
+            Vector3[] installedTagPositions =
+            {
+                Vector3.back * 0.004f,
+                Vector3.forward * 0.004f
+            };
+
+            for (int i = 0; i < tagIds.Length; i++)
+            {
+                Quaternion recoveredPhoneRotation = installedTagRotations[i]
+                    * phoneRule.GetAprilTagToObjectRotation(tagIds[i], null);
+                float rotationErrorDegrees = Quaternion.Angle(
+                    recoveredPhoneRotation,
+                    Quaternion.identity);
+                Vector3 recoveredPhoneCenter = installedTagPositions[i]
+                    + installedTagRotations[i]
+                        * phoneRule.AprilTagToObjectOffsetMeters;
+
+                if (rotationErrorDegrees > 0.1f
+                    || recoveredPhoneCenter.magnitude > 0.0001f)
+                {
+                    Debug.LogError(
+                        $"Phone AprilTag {tagIds[i]} does not recover the common "
+                        + "phone frame. Tag 4 must be on the back, Tag 5 on the "
+                        + "front, with both image tops pointing toward the phone top.");
+                    return false;
+                }
+            }
+
+            Debug.Log(
+                "Phone mount geometry validated: back Tag 4 and front Tag 5 "
+                + "recover the same phone center and orientation.");
             return true;
         }
 

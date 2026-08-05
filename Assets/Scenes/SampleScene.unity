@@ -6247,7 +6247,7 @@ MonoBehaviour:
   preferAprilTagPose: 1
   autoConfigureAprilTagTracking: 1
   requireAprilTagPoseForTaggedRules: 1
-  cupDemoOnly: 1
+  cupDemoOnly: 0
   rotationFollowSpeed: 14
   tagHandoverFreshnessSeconds: 0.12
   visualFallbackMaxViewportDistance: 0.24
@@ -6498,7 +6498,7 @@ MonoBehaviour:
   depthProvider: {fileID: 1702211334}
   arCamera: {fileID: 331264287}
   minimumCupDimensionMeters: 0.03
-  maximumCupDimensionMeters: 0.6
+  maximumCupDimensionMeters: 3
   fallbackHeightMultiplier: 0.94
   fallbackWidthMultiplier: 0.82
 --- !u!1 &1756045394

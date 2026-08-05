@@ -5,10 +5,9 @@ using UnityEngine;
 namespace AR80sRetro
 {
     /// <summary>
-    /// Cup-first replacement manager. YOLO confirms the class, while the newest
-    /// visible tag from a small rigid mount set supplies identity and 6DoF. The
-    /// cup size is initialized from a few ordinary same-view detections, so no
-    /// guided camera sweep is required.
+    /// Multi-object replacement manager. YOLO confirms each class and bounding
+    /// box, while class-specific AprilTag IDs provide identity and 6DoF pose.
+    /// Disjoint Tag sets allow several supported objects to be replaced at once.
     /// </summary>
     public sealed class RetroReplacementManager : MonoBehaviour
     {
@@ -74,9 +73,10 @@ namespace AR80sRetro
         [Header("Tracking policy")]
         [SerializeField] private bool preferAprilTagPose = true;
         [SerializeField] private bool autoConfigureAprilTagTracking = true;
-        [Tooltip("A cup is never spawned from a plane pose because a plane anchor cannot follow a lifted cup.")]
+        [Tooltip("Tagged movable objects are never spawned from a plane pose because a plane anchor cannot follow them after they are lifted.")]
         [SerializeField] private bool requireAprilTagPoseForTaggedRules = true;
-        [SerializeField] private bool cupDemoOnly = true;
+        [Tooltip("Legacy diagnostic switch. Keep disabled for multi-object replacement.")]
+        [SerializeField] private bool cupDemoOnly;
         [SerializeField, Min(0.01f)] private float rotationFollowSpeed = 14f;
         [Tooltip("How long the active tag may stop updating before a fresher configured tag takes over.")]
         [SerializeField, Range(0.05f, 0.25f)] private float tagHandoverFreshnessSeconds = 0.12f;
@@ -103,7 +103,9 @@ namespace AR80sRetro
         private readonly Dictionary<string, int> bestDetectionByTag =
             new Dictionary<string, int>();
         private TagAssociation[] tagAssociations = Array.Empty<TagAssociation>();
-        private string currentStatusMessage = "WAITING: show cup + AprilTag 0/1/2/3";
+        private const string WaitingStatus =
+            "WAITING: show a supported object + its assigned AprilTag";
+        private string currentStatusMessage = WaitingStatus;
 
         public string CurrentStatusMessage => currentStatusMessage;
 
@@ -126,7 +128,7 @@ namespace AR80sRetro
 
             EnsureCupRegistrationComponents();
             ValidateConfiguration();
-            SetStatus("WAITING: show cup + AprilTag 0/1/2/3");
+            SetStatus(WaitingStatus);
         }
 
         private void Reset()
@@ -141,6 +143,7 @@ namespace AR80sRetro
 
         private void Update()
         {
+            UpdateAprilTagOnlyReplacements();
             UpdateTargetsFromStoredTags();
             SmoothTrackedObjects();
             UpdateLostStates();
@@ -156,7 +159,7 @@ namespace AR80sRetro
             PrepareTagAssociations(detections);
             if (detections.Count == 0 && !HasVisibleReplacement())
             {
-                SetStatus("WAITING: show cup + AprilTag 0/1/2/3");
+                SetStatus(WaitingStatus);
             }
 
             float now = Time.time;
@@ -174,6 +177,15 @@ namespace AR80sRetro
                     LogDiagnostic(
                         $"rule:{detection.Label}",
                         $"Replacement skipped: no prefab rule for YOLO label '{detection.Label}'.");
+                    continue;
+                }
+
+                if (rule.Prefab == null)
+                {
+                    LogDiagnostic(
+                        $"model:{rule.DetectionLabel}",
+                        $"Replacement skipped for '{rule.DetectionLabel}': "
+                        + "no Prefab is assigned. Missing models are not replaced.");
                     continue;
                 }
 
@@ -211,7 +223,9 @@ namespace AR80sRetro
                         && preferAprilTagPose
                         && requireAprilTagPoseForTaggedRules)
                     {
-                        SetStatus($"CUP FOUND - WAITING FOR APRILTAG {rule.AprilTagIdSummary}");
+                        SetStatus(
+                            $"{rule.DetectionLabel.ToUpperInvariant()} FOUND - "
+                            + $"WAITING FOR APRILTAG {rule.AprilTagIdSummary}");
                         LogDiagnostic(
                             $"tag:{rule.DetectionLabel}",
                             $"'{rule.DetectionLabel}' is visible, but no fresh configured AprilTag ({rule.AprilTagIdSummary}) can be bound. Keep at least one tag clear and verify the 1 cm black-square size.");
@@ -228,10 +242,11 @@ namespace AR80sRetro
                 }
 
                 bool directMultiTagCup = UsesDirectMultiTagCup(rule);
-                TrackedReplacement tracked = directMultiTagCup
-                    ? FindReusableCupTrack(rule)
+                bool multiTagIdentity = UsesMultiTagIdentity(rule);
+                TrackedReplacement tracked = multiTagIdentity
+                    ? FindReusableTrack(rule)
                     : FindTrackByTag(tagId, imageName);
-                if (directMultiTagCup
+                if (multiTagIdentity
                     && tracked != null
                     && !IsSameTag(tracked, tagId, imageName)
                     && aprilTagPoseSource.TryGetTagPose(
@@ -439,7 +454,7 @@ namespace AR80sRetro
                 tracked.State = ReplacementState.Acquiring;
             }
 
-            SetStatus("WAITING: show cup + AprilTag 0/1/2/3");
+            SetStatus(WaitingStatus);
         }
 
         private void UpdateAutomaticRegistration(
@@ -491,13 +506,23 @@ namespace AR80sRetro
             }
         }
 
-        private void CreateReplacement(
+        private bool CreateReplacement(
             TrackedReplacement tracked,
             CupMeasurement measurement,
             bool hasMeasurement,
             DetectionResult detection)
         {
             RetroReplacementRule rule = tracked.Rule;
+            if (rule == null || rule.Prefab == null)
+            {
+                tracked.ConfirmedFrames = 0;
+                LogDiagnostic(
+                    $"model:{tracked.Label}",
+                    $"Replacement skipped for '{tracked.Label}': "
+                    + "no Prefab is assigned. Missing models are not replaced.");
+                return false;
+            }
+
             GameObject wrapper = new GameObject(
                 $"Retro {rule.DetectionLabel} (AprilTag {tracked.AprilTagId})");
             wrapper.transform.SetParent(contentRoot, false);
@@ -505,8 +530,22 @@ namespace AR80sRetro
                 tracked.TargetPose.position,
                 tracked.TargetPose.rotation);
 
-            GameObject visual = Instantiate(rule.Prefab, wrapper.transform, false);
-            visual.name = $"{rule.Prefab.name} Visual";
+            GameObject visual = CreateReplacementVisual(rule, wrapper.transform);
+            if (visual == null)
+            {
+                Destroy(wrapper);
+                tracked.ConfirmedFrames = 0;
+                SetStatus(
+                    $"{rule.DetectionLabel.ToUpperInvariant()} FOUND - "
+                    + "MODEL FAILED TO LOAD; NOT REPLACED");
+                LogDiagnostic(
+                    $"model:{rule.DetectionLabel}",
+                    $"Replacement skipped for '{rule.DetectionLabel}': "
+                    + "the assigned Prefab could not be instantiated with a "
+                    + "valid MeshFilter or SkinnedMeshRenderer.");
+                return false;
+            }
+
             CupModelFitter fitter = wrapper.AddComponent<CupModelFitter>();
 
             Vector3 measuredSize;
@@ -549,8 +588,141 @@ namespace AR80sRetro
             Debug.Log(
                 $"Retro replacement created: label={rule.DetectionLabel}, "
                 + $"AprilTag={tracked.AprilTagId}, directMultiTag={UsesDirectMultiTagCup(rule)}, "
-                + $"size={(measuredSize.x > 0f ? measuredSize.ToString() : "fallback")}",
+                + $"size={(measuredSize.x > 0f ? measuredSize.ToString() : "authored-prefab")}",
                 this);
+            return true;
+        }
+
+        private static GameObject CreateReplacementVisual(
+            RetroReplacementRule rule,
+            Transform parent)
+        {
+            if (rule?.Prefab == null)
+            {
+                return null;
+            }
+
+            GameObject visual = Instantiate(rule.Prefab, parent, false);
+            if (visual == null)
+            {
+                return null;
+            }
+
+            if (!HasRenderableMesh(visual))
+            {
+                Destroy(visual);
+                return null;
+            }
+
+            visual.name = $"{rule.Prefab.name} Visual";
+            return visual;
+        }
+
+        private void UpdateAprilTagOnlyReplacements()
+        {
+            if (!preferAprilTagPose
+                || aprilTagPoseSource == null
+                || prefabLibrary == null)
+            {
+                return;
+            }
+
+            IReadOnlyList<RetroReplacementRule> rules = prefabLibrary.Rules;
+            float now = Time.time;
+            for (int i = 0; i < rules.Count; i++)
+            {
+                RetroReplacementRule rule = rules[i];
+                if (rule == null || !rule.TrackFromAprilTagWithoutYolo)
+                {
+                    continue;
+                }
+
+                if (rule.Prefab == null)
+                {
+                    LogDiagnostic(
+                        $"model:{rule.DetectionLabel}",
+                        $"Tag-only replacement skipped for "
+                        + $"'{rule.DetectionLabel}': no Prefab is assigned.");
+                    continue;
+                }
+
+                if (!aprilTagPoseSource.TryGetNewestTagPose(
+                    rule,
+                    out Pose tagPose,
+                    out int tagId,
+                    out string imageName,
+                    out float poseAgeSeconds))
+                {
+                    continue;
+                }
+
+                TrackedReplacement tracked = FindTrackByTag(tagId, imageName);
+                if (tracked == null)
+                {
+                    tracked = new TrackedReplacement
+                    {
+                        Label = rule.DetectionLabel.ToLowerInvariant(),
+                        Rule = rule,
+                        AprilTagId = tagId,
+                        AprilTagImageName = imageName
+                    };
+                    trackedReplacements.Add(tracked);
+                }
+
+                tracked.Rule = rule;
+                tracked.AprilTagId = tagId;
+                tracked.AprilTagImageName = imageName;
+                tracked.LastTagPose = tagPose;
+                tracked.LastTagSeenTime =
+                    now - Mathf.Max(0f, poseAgeSeconds);
+                tracked.TargetPose = BuildTrackedObjectPose(
+                    rule,
+                    tracked,
+                    tagPose,
+                    tagId,
+                    imageName);
+                tracked.HasTargetPose = true;
+                tracked.State = ReplacementState.Tracking;
+
+                if (tracked.Instance == null)
+                {
+                    tracked.ConfirmedFrames = rule.ConfirmationFrames;
+                    CreateReplacement(
+                        tracked,
+                        default,
+                        false,
+                        default);
+                }
+                else
+                {
+                    SetTrackedVisualActive(tracked, true);
+                    SetStatus(GetTrackingStatus(tracked));
+                }
+            }
+        }
+
+        private static bool HasRenderableMesh(GameObject visual)
+        {
+            MeshFilter[] filters = visual.GetComponentsInChildren<MeshFilter>(true);
+            for (int i = 0; i < filters.Length; i++)
+            {
+                if (filters[i].sharedMesh != null)
+                {
+                    return true;
+                }
+            }
+
+            SkinnedMeshRenderer[] skinned =
+                visual.GetComponentsInChildren<SkinnedMeshRenderer>(true);
+            for (int i = 0; i < skinned.Length; i++)
+            {
+                if (skinned[i].sharedMesh != null)
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private bool TryApplyShortVisualFallback(
@@ -600,7 +772,9 @@ namespace AR80sRetro
             tracked.LastDetectionSeenTime = now;
             tracked.State = ReplacementState.VisualFallback;
             SetTrackedVisualActive(tracked, true);
-            SetStatus("APRILTAG HIDDEN - SHORT POSITION FALLBACK");
+            SetStatus(
+                $"{rule.DetectionLabel.ToUpperInvariant()}: "
+                + "APRILTAG HIDDEN - SHORT POSITION FALLBACK");
             return true;
         }
 
@@ -961,7 +1135,9 @@ namespace AR80sRetro
                 tracked.HasTargetPose = false;
                 tracked.MoveVelocity = Vector3.zero;
                 SetTrackedVisualActive(tracked, false);
-                SetStatus("CUP LOST - SHOW CUP + APRILTAG 0/1/2/3");
+                SetStatus(
+                    $"{tracked.Label.ToUpperInvariant()} LOST - SHOW "
+                    + $"APRILTAG {tracked.Rule?.AprilTagIdSummary}");
                 if (!destroyWhenLost || age <= destroyAfterLostSeconds)
                 {
                     continue;
@@ -1203,7 +1379,7 @@ namespace AR80sRetro
             return null;
         }
 
-        private TrackedReplacement FindReusableCupTrack(RetroReplacementRule rule)
+        private TrackedReplacement FindReusableTrack(RetroReplacementRule rule)
         {
             TrackedReplacement best = null;
             float bestSeenTime = float.NegativeInfinity;
@@ -1267,7 +1443,8 @@ namespace AR80sRetro
 
             LogDiagnostic(
                 $"tag-switch:{tagId}",
-                $"Cup tracking handed over to AprilTag {tagId} without creating a second model.");
+                $"{rule.DetectionLabel} tracking handed over to AprilTag {tagId} "
+                + "without creating a second model.");
         }
 
         private static bool IsSameTag(
@@ -1289,6 +1466,11 @@ namespace AR80sRetro
             return rule != null
                 && rule.HasMultipleAprilTags
                 && rule.UseStandardCupTagMount;
+        }
+
+        private static bool UsesMultiTagIdentity(RetroReplacementRule rule)
+        {
+            return rule != null && rule.HasMultipleAprilTags;
         }
 
         private static void UpdateTrackedCupMeasurement(
@@ -1501,13 +1683,14 @@ namespace AR80sRetro
 
         private static string GetTrackingStatus(TrackedReplacement tracked)
         {
+            string label = tracked?.Label?.ToUpperInvariant() ?? "OBJECT";
             if (TryGetTrackedMeasuredSize(tracked, out Vector3 size))
             {
-                return $"TRACKING CUP (APRILTAG {tracked.AprilTagId})  "
-                    + $"H={size.y * 100f:F1}cm D={size.z * 100f:F1}cm";
+                return $"TRACKING {label} (APRILTAG {tracked.AprilTagId})  "
+                    + $"H={size.y * 100f:F1}cm W={size.x * 100f:F1}cm";
             }
 
-            return $"TRACKING CUP (APRILTAG {tracked?.AprilTagId ?? -1})";
+            return $"TRACKING {label} (APRILTAG {tracked?.AprilTagId ?? -1})";
         }
 
         private static void SetTrackedVisualActive(
@@ -1619,6 +1802,14 @@ namespace AR80sRetro
             if (preferAprilTagPose && aprilTagPoseSource == null)
             {
                 Debug.LogError("AprilTag Pose Source is not assigned.", this);
+            }
+
+            if (prefabLibrary != null
+                && !prefabLibrary.TryValidateUniqueAprilTagIds(out string tagError))
+            {
+                Debug.LogError(
+                    $"Retro replacement Tag configuration is invalid: {tagError}",
+                    this);
             }
         }
 

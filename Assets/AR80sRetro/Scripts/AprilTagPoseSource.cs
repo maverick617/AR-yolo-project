@@ -277,8 +277,8 @@ namespace AR80sRetro
 
         /// <summary>
         /// Returns the newest fresh observation across every tag mount configured
-        /// for the same rule. This lets an existing cup track hand over from one
-        /// face tag to another without waiting for the next YOLO inference.
+        /// for the same rule. This lets an existing multi-tag object hand over
+        /// from one face tag to another without waiting for the next YOLO inference.
         /// </summary>
         public bool TryGetNewestTagPose(
             RetroReplacementRule rule,

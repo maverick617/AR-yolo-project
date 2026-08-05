@@ -2,8 +2,8 @@
 
 ## 测试前检查
 
-- 使用 `Assets/Scenes/SampleScene.unity`，并执行一次 `Tools > AR 80s Retro > Configure Build Scene (4-Tag Cup)`。
-- 使用 `tagStandard41h12` 的 ID 0、1、2、3。每个 Tag 的有效黑色方形边长都是 1 cm，场景值为 `tagSizeMeters = 0.01`；白边不计入尺寸。
+- 使用 `Assets/Scenes/SampleScene.unity`，并执行一次 `Tools > AR 80s Retro > Configure Build Scene (Multi-Object)`。
+- 使用 AprilRobotics 官方 `tagStandard41h12` 的 ID 0、1、2、3，不旋转、镜像、翻转或重绘 PNG。场景值为 `tagSizeMeters = 0.01`；按官方定义测量两检测角之间的白/黑边界距离为 1 cm，PNG 外侧留白不计入尺寸。官方文件校验方法见根目录 `APRILTAG_ORIENTATION_ZH.md`。
 - 俯视且把手朝 3 点：ID 0 位于把手正对面的 9 点，ID 1 在 1 点，ID 2 在 5 点。三者的上边均朝杯口、正面均朝外、中心均处于杯身高度中点。
 - ID 3 平贴杯底且正面朝外；杯子正放时标签朝下，图案上边指向把手。
 - ID 1 和 ID 2 不可交换。位置或图片朝向错误会直接变成虚拟把手的角度误差。
@@ -13,7 +13,7 @@
 
 ## 屏幕状态
 
-### `WAITING: show cup + AprilTag 0/1/2/3`
+### `WAITING: show a supported object + its assigned AprilTag`
 
 尚未同时得到有效 `cup` 检测和任一已配置 Tag。控制台应能看到 `YOLO detect: cup`。
 
@@ -43,7 +43,7 @@ YOLO 已找到杯子，但 ID 0、1、2、3 都没有新鲜位姿。检查：
 
 所有 Tag 暂时不可见。YOLO 和尺寸估计仍有效时，系统最多约 0.8 秒修正位置并保持最后旋转；重新露出任一 Tag 后恢复完整 6DoF。
 
-### `CUP LOST - SHOW CUP + APRILTAG 0/1/2/3`
+### `CUP LOST - SHOW APRILTAG 0/1/2/3`
 
 杯子和四个 Tag 都超过丢失宽限时间。让杯子与任一 Tag 回到画面即可。
 

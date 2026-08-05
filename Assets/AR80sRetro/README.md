@@ -1,90 +1,86 @@
-# AR 80s Retro：三侧面标签 + 一杯底标签 Cup 实现
+# AR80sRetro 多物体替换模块
+
+本目录实现 YOLO 类别检测、AprilTag 唯一身份/6DoF 跟踪、尺寸估计和虚拟模型替换。项目级介绍、Tag 数量及构建步骤见根目录 [README](../../README.md)。
+
+所有安装角度都以 AprilRobotics 官方 PNG 未经旋转时的图像上边为准。固定版本、SHA-256 校验下载和完整安装表见 [AprilTag 官方正置与打印](../../APRILTAG_ORIENTATION_ZH.md)。
 
 ## 运行时数据流
 
 ```text
 ARCameraFrameProvider
-    ├── YoloObjectDetector ── cup bbox / optional mask
-    └── KeijiroAprilTagFrameDetector ── Tag 0/1/2/3 raw pose
+    ├── YoloObjectDetector
+    │      └── cup / phone / tv / bottle / chair / couch / plant / table
+    └── KeijiroAprilTagFrameDetector
+           └── tagStandard41h12 ID 0-12 raw pose
 
-Tag ID ── configured 3D mount rotation/center offset ── common cup/handle frame
-YOLO screen box + environment depth (Tag range only as no-depth fallback)
-                         │
-                         └── 5 same-view size samples
-    └── RetroReplacementManager
-        ├── one reusable cup track across Tag handovers
-        └── wrapper pose + CupModelFitter + retro cup visual
+YOLO detection + class-specific unique Tag
+                    │
+                    ▼
+        RetroReplacementManager
+          ├── one track per assigned Tag group/object
+          ├── concurrent replacement instances
+          ├── depth/YOLO metric sizing
+          └── valid prefab, or skip when the model is unavailable
 ```
 
-YOLO 负责确认 `cup` 和提供测量区域。三个侧面 Tag 与一个杯底 Tag 的位姿通过各自固定的安装变换换算到同一个杯子坐标系；实时跟踪不依赖 AR 平面，因此杯子被拿起后仍可跟随。
+## 唯一 Tag 分配
 
-## 主要实现
+| 类别 | ID |
+|---|---|
+| cup | `0、1、2、3` |
+| phone | `4、5` |
+| tv | `6` |
+| bottle | `7` |
+| chair | `8` |
+| couch | `9` |
+| plant | `10` |
+| table | `11` |
+| pen | `12`（不依赖 YOLO 的模型放置调试） |
 
-- `ARCameraFrameProvider`：统一相机帧、中心裁剪、缓存、内参 FOV 和检测图像旋转补偿。
-- `AprilTagPoseSource`：保存 ID 0/1/2/3 的新鲜原始位姿，按检测框关联 Tag，并允许已有杯子轨迹在 Tag 之间交接。
-- `RetroReplacementRule`：为主 Tag 和额外 Tag 保存不同的最终 Tag→杯子旋转；非标准安装还能覆盖 Tag→杯心方向及使用杯高/杯径中的哪一个计算距离。
-- `CupDimensionEstimator`：始终以 YOLO 杯框作为尺寸范围；优先用环境深度把像素范围换算成米，无深度时只借用 Tag 的相机距离做透视回退。
-- `RetroReplacementManager`：以 5 个同视角 YOLO 测量的中值初始化并锁定本次杯子尺寸，再让虚拟杯的投影高度匹配 YOLO 杯框；Tag 切换时复用同一实例并持续更新旋转/短时位姿。
-- `CupModelFitter`：优先拟合杯身直径和高度，并用鲁棒网格统计定位杯身中心，降低把手对整体包围盒的偏置。
-- `CupRegistrationSession/ProfileStore`：仅为兼容旧的单 Tag 规则保留；当前四 Tag cup 规则不读取旧 Profile。
+`RetroPrefabLibrary.TryValidateUniqueAprilTagIds` 会拒绝通配 Tag 和跨类别重复 ID。检测关联先按类别规则过滤 Tag，再按 Tag 投影到检测框中心的距离选择最合适的检测，因此多个类别能够在同一推理帧中分别消费自己的 Tag。
 
-## 四标签几何约定
+## 主要组件
 
-俯视时令现实把手指向 3 点。侧面标签上边朝杯口、正面朝外；杯底标签上边指向把手、正面朝杯外：
+- `YoloObjectDetector`：解析标准 COCO YOLOv8 detection/segmentation 输出，并保留上述目标类别。
+- `AprilTagPoseSource`：缓存新鲜 Tag 位姿，按类别规则和 YOLO 框关联。
+- `RetroReplacementRule`：保存类别、Prefab、唯一 Tag、Tag→物体变换和是否允许 Tag-only 调试。
+- `RetroPrefabLibrary`：查找类别规则并校验所有 Tag ID 不冲突。
+- `CupDimensionEstimator`：将 YOLO 框在环境深度或 Tag 距离处换算成米制包围尺寸。
+- `RetroReplacementManager`：管理并发轨迹、Tag 交接、短时回退、模型实例和状态。
+- `CupModelFitter`：杯子使用杯身鲁棒尺寸拟合；其他有效模型按检测尺寸等比例拟合。
 
-| Tag | 实体位置 | 最终 Tag→cup Euler |
-|---|---:|---:|
-| ID 0 | 9 点，把手正对面；上边朝杯口 | `(0, -90, 0)` |
-| ID 1 | 1 点；上边朝杯口 | `(0, +150, 0)` |
-| ID 2 | 5 点；上边朝杯口 | `(0, +30, 0)` |
-| ID 3 | 杯底，正面朝外；上边指向把手 | `(0, +90, +90)` |
+## 模型缺失行为
 
-三个侧面位置相隔 120°，中心位于杯身高度中点的同一水平带。四个标签的有效黑色方形边长均为 `0.01 m`。侧面 Tag 到杯心的距离使用实测杯身直径的一半；杯底 ID 3 使用实测杯高的一半。Keijiro 输出中 Tag 局部 `+Y` 指向官方图案上边，局部 `+Z` 从图案正面指入标签背面，所以两种安装的局部杯心方向都是 `(0, 0, +1)`，但尺度轴不同。
+如果某条规则没有 Prefab、实例化失败，或实例中没有有效 `MeshFilter`/`SkinnedMeshRenderer`，管理器会跳过该物体并记录限频诊断信息。系统不再创建 `PrimitiveType.Cube` 或其他占位替换物。
 
-核心公式：
+手机使用 `Models/phone/Model/old_nokia_phone.obj` 和 `Models/phone/prefab/phone.prefab`，Prefab 含背壳、侧面、屏幕三个网格，基准尺寸约为 `6 × 15 × 2 cm`；来源与 CC BY 4.0 署名见 `Models/phone/ATTRIBUTION.md`。手机 Tag 组 `4/5` 会在正反面之间交接同一条轨迹。
 
-```text
-worldCupPosition = worldTagPosition
-                 + worldTagRotation × configuredCenterOffset[tagId]
-worldCupRotation = worldTagRotation × configuredTagToCupRotation[tagId]
-```
+TV 使用项目已有的 `Models/tv/Model/tv.fbx` 和 `Models/tv/prefab/tv.prefab`。pen 使用 `Models/pen/Model/old_pen.obj` 和 `Models/pen/prefab/pen.prefab`，笔尖统一为本地 `+Y`，基准尺寸约 `1 × 14 × 1 cm`。bottle、chair、couch、plant、table 暂无有效网格，因此只保留独立 Tag 规则，不会生成替换视觉。
 
-其中侧面 `configuredCenterOffset` 使用 `measuredBodyDiameter / 2`，杯底 ID 3 使用 `measuredHeight / 2`。四个安装变换都以同一个杯口轴和把手轴为目标，因此实体按约定正贴时，切换 Tag 不改变模型的最终姿态。
+## 手机连续追踪
 
-当前 Tag 保持新鲜时继续使用它；只有失效后才选最新的另一个已配置 Tag，以减少重叠可见区的交接抖动。
+手机背面使用 ID `4`，正面使用 ID `5`。两张 Tag 均贴在对应表面中心附近，图案上边朝向手机顶部、正面朝外。规则为正面 Tag 配置了 `Y=180°` 的 Tag→手机旋转，因此任意一面可见时都恢复到同一个手机坐标系；追踪器会在两张 Tag 之间切换而不创建第二个手机实例。
 
-## 无引导扫描的动态尺寸
+## 笔 Tag-only 调试
 
-首次从侧面 ID 0/1/2 的有效检测在同一视角累积 `cupRegistrationSamples = 5` 个尺寸和 YOLO 框样本，逐轴取中值后创建模型。YOLO 间隔为 0.25 秒，因此通常只需静止约 1–2 秒。杯底 ID 3 不能首次解出杯高，只在尺寸锁定后接管翻转跟踪。中值在本次轨迹内锁定，避免杯子旋转时检测框受把手影响而产生呼吸缩放；更换实体杯时清除并重新测量。
+当前 COCO YOLO 没有 `pen` 类。pen 规则启用 `trackFromAprilTagWithoutYolo`，只要 ID `12` 新鲜可见，就会直接建立笔模型并用同一份 AprilTag 6DoF 位姿逐帧更新。Tag 固定在笔杆中部的平整小卡片上，官方 PNG 上边朝笔尖，默认沿 Tag 局部 `+Z` 向笔杆内部偏移 `6 mm` 到模型中心。
 
-尺寸没有写死：高度来自 YOLO 框，水平拟合使用由 YOLO 宽度估计的杯身直径。检测框可能含现实把手，虚拟模型也可能有更大的把手，但 `CupModelFitter` 和最终屏幕匹配都不会为了把虚拟把手塞入检测框而缩小整个杯身。
+## Cup 特殊路径
 
-最终创建时会投影虚拟模型的本地网格边界，并让模型投影高度约占完整 YOLO 杯框高度的 `96%`。宽度不作为统一缩放限制，因为复古把手允许伸出无把手现实杯的检测框。投影匹配可同时放大过小模型或缩小过大模型；只有与 YOLO 高度的误差不超过 `4%` 才锁定，否则后续检测会继续修正。最大修正是比例安全限制而不是固定杯子尺寸。状态栏会显示最终 `H`（高度）与 `D`（杯身直径），便于真机核对。
+Cup 继续使用三侧面 Tag `0/1/2` 加杯底 Tag `3`。四个安装位姿转换到统一的杯心/把手坐标系；侧面视角收集 5 个 YOLO 尺寸样本并锁定杯高与杯身直径。详细几何和真机排错见 [CUP_DEMO_SETUP_ZH.md](CUP_DEMO_SETUP_ZH.md)。
 
-## 分割模型接口
+## 场景配置
 
-`YoloObjectDetector` 支持标准 COCO 80 类 YOLOv8-seg 双输出。可将兼容模型导入：
-
-```text
-Assets/AR80sRetro/Models/YOLO/yolov8n-seg.onnx
-```
-
-缺失时会明确警告并继续使用 detection-only 模型、环境深度或透视回退。
-
-## 构建场景
-
-唯一应维护和构建的场景：
+唯一构建场景是：
 
 ```text
 Assets/Scenes/SampleScene.unity
 ```
 
-执行并保存：
+在 Unity 中执行：
 
 ```text
-Tools > AR 80s Retro > Configure Build Scene (4-Tag Cup)
+Tools > AR 80s Retro > Configure Build Scene (Multi-Object)
 ```
 
-该工具显式连接尺寸估计器、检测器和 Tag tracker，验证 ID 0/1/2/3，并保证 `tagSizeMeters = 0.01`、`decimation = 1`。由于共享相机纹理已经旋转成竖屏，工具还固定 `compensateFrameRotation = false` 和手动姿态修正 `(0,0,0)`，防止侧面正置 Tag 被重复滚转 90°。测量用 `AROcclusionManager` 位于 `AR80sRetro System`，不会在相机背景阶段用现实杯深度遮掉虚拟模型。
-
-设备操作与状态排错见 [CUP_DEMO_SETUP_ZH.md](CUP_DEMO_SETUP_ZH.md)。
+配置工具会验证 cup `0–3`、phone `4/5`、TV `6`、pen `12` 以及全资源表的 Tag 唯一性，关闭重复画面旋转补偿，并保留环境深度用于尺寸换算。每个 Tag 的准确粘贴位置见根目录 README 的“每个 Tag 的粘贴位置”表。

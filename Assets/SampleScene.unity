@@ -440,7 +440,7 @@ MonoBehaviour:
   tagSizeMeters: 0.01
   decimation: 1
   detectionIntervalSeconds: 0.05
-  compensateFrameRotation: 1
+  compensateFrameRotation: 0
   detectorToCameraRotationCorrectionEuler: {x: 0, y: 0, z: 0}
   logDetectedTags: 1
 --- !u!114 &1631699714
@@ -578,7 +578,7 @@ MonoBehaviour:
   preferAprilTagPose: 1
   autoConfigureAprilTagTracking: 1
   requireAprilTagPoseForTaggedRules: 1
-  cupDemoOnly: 1
+  cupDemoOnly: 0
   rotationFollowSpeed: 14
   lostStateDelaySeconds: 1.2
   destroyWhenLost: 0

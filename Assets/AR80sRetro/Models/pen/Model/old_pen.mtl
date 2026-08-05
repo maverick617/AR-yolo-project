@@ -1,0 +1,17 @@
+# File produced by Open Asset Import Library (http://www.assimp.sf.net)
+# (assimp v6.0.0)
+
+newmtl None
+Kd 1 1 1
+Ke 0 0 0
+d 1
+illum 1
+map_Kd ../Texture/old_pen_baseColor.png
+bump ../Texture/old_pen_normal.png
+map_bump ../Texture/old_pen_normal.png
+
+newmtl $Material_1
+Kd 1 1 1
+Ke 0 0 0
+d 1
+illum 1

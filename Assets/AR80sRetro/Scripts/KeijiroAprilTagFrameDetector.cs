@@ -12,8 +12,9 @@ namespace AR80sRetro
         [Tooltip("Use full detector resolution for the 1 cm demo tag.")]
         [SerializeField, Min(1)] private int decimation = 1;
         [SerializeField, Min(0.02f)] private float detectionIntervalSeconds = 0.05f;
-        [Tooltip("The shared camera texture is already rotated into portrait detector coordinates. Enabling this again applies a duplicate 90-degree roll to the published Tag pose.")]
+        [Tooltip("Keep disabled. The shared camera texture is already in portrait detector coordinates, so the unrotated official PNG top maps to Tag local +Y.")]
         [SerializeField] private bool compensateFrameRotation;
+        [Tooltip("Keep at zero to preserve the canonical orientation of the official tagStandard41h12 PNG files.")]
         [SerializeField] private Vector3 detectorToCameraRotationCorrectionEuler;
         [SerializeField] private bool logDetectedTags;
 

@@ -76,16 +76,18 @@ namespace AR80sRetro
         [SerializeField, Min(0.1f)] private float estimatedWidthMultiplier = 0.9f;
         [SerializeField] private Vector2 scaleMultiplierRange = new Vector2(0.25f, 4f);
         [SerializeField] private bool useAprilTagPose = true;
+        [Tooltip("Create and track this object directly from its configured AprilTag even when the current YOLO model has no matching class. Intended for model-placement debugging.")]
+        [SerializeField] private bool trackFromAprilTagWithoutYolo;
         [SerializeField] private int aprilTagId = -1;
         [SerializeField] private string aprilTagTrackedImageName;
         [SerializeField] private Vector3 aprilTagToObjectOffsetMeters;
         [SerializeField] private Vector3 aprilTagToObjectRotationEuler;
         [SerializeField, Min(0.05f)] private float aprilTagMaxPoseAgeSeconds = 0.35f;
-        [Tooltip("Extra rigid tags on the same physical cup. Each ID has a known rotation to the common cup/handle frame.")]
+        [Tooltip("Extra rigid tags on the same physical object. Each ID has a known rotation to one common object frame.")]
         [SerializeField] private List<AdditionalAprilTagMount> additionalAprilTagMounts =
             new List<AdditionalAprilTagMount>();
 
-        [Header("Cup sizing and rigid tag mount")]
+        [Header("Sizing and rigid tag mount")]
         [Tooltip("Legacy single-tag profile collection. Multi-tag cup rules use passive same-view sizing instead.")]
         [SerializeField] private bool enableAutomaticCupRegistration = true;
         [SerializeField, Range(3, 30)] private int cupRegistrationSamples = 8;
@@ -119,6 +121,8 @@ namespace AR80sRetro
         public float EstimatedWidthMultiplier => estimatedWidthMultiplier;
         public Vector2 ScaleMultiplierRange => scaleMultiplierRange;
         public bool UseAprilTagPose => useAprilTagPose;
+        public bool TrackFromAprilTagWithoutYolo =>
+            trackFromAprilTagWithoutYolo;
         public int AprilTagId => aprilTagId;
         public string AprilTagTrackedImageName => aprilTagTrackedImageName;
         public Vector3 AprilTagToObjectOffsetMeters => aprilTagToObjectOffsetMeters;
@@ -128,6 +132,36 @@ namespace AR80sRetro
             additionalAprilTagMounts;
         public bool HasMultipleAprilTags => additionalAprilTagMounts != null
             && additionalAprilTagMounts.Count > 0;
+        public bool HasExplicitAprilTagIdentity
+        {
+            get
+            {
+                if (aprilTagId >= 0
+                    || !string.IsNullOrWhiteSpace(aprilTagTrackedImageName))
+                {
+                    return true;
+                }
+
+                if (additionalAprilTagMounts == null)
+                {
+                    return false;
+                }
+
+                for (int i = 0; i < additionalAprilTagMounts.Count; i++)
+                {
+                    AdditionalAprilTagMount mount = additionalAprilTagMounts[i];
+                    if (mount != null
+                        && (mount.TagId >= 0
+                            || !string.IsNullOrWhiteSpace(
+                                mount.TrackedImageName)))
+                    {
+                        return true;
+                    }
+                }
+
+                return false;
+            }
+        }
         public string AprilTagIdSummary
         {
             get
@@ -205,6 +239,33 @@ namespace AR80sRetro
                         aprilTagTrackedImageName,
                         observedImageName,
                         StringComparison.OrdinalIgnoreCase));
+        }
+
+        public void GetConfiguredAprilTagIds(List<int> destination)
+        {
+            if (destination == null)
+            {
+                return;
+            }
+
+            if (aprilTagId >= 0)
+            {
+                destination.Add(aprilTagId);
+            }
+
+            if (additionalAprilTagMounts == null)
+            {
+                return;
+            }
+
+            for (int i = 0; i < additionalAprilTagMounts.Count; i++)
+            {
+                AdditionalAprilTagMount mount = additionalAprilTagMounts[i];
+                if (mount != null && mount.TagId >= 0)
+                {
+                    destination.Add(mount.TagId);
+                }
+            }
         }
 
         public Quaternion GetAprilTagToObjectRotation(

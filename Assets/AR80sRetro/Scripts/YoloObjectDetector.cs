@@ -45,17 +45,31 @@ namespace AR80sRetro
 
         private const int InputSize = 640;
         private const int CocoClassCount = 80;
+        private const int BottleClassIndex = 39;
         private const int CupClassIndex = 41;
+        private const int ChairClassIndex = 56;
+        private const int CouchClassIndex = 57;
+        private const int PlantClassIndex = 58;
+        private const int TableClassIndex = 60;
+        private const int TvClassIndex = 62;
+        private const int PhoneClassIndex = 67;
         private const string CupLabel = "cup";
 
         private static readonly TargetClass[] TargetClasses =
         {
-            new TargetClass(CupClassIndex, CupLabel)
+            new TargetClass(CupClassIndex, CupLabel),
+            new TargetClass(PhoneClassIndex, "phone"),
+            new TargetClass(TvClassIndex, "tv"),
+            new TargetClass(BottleClassIndex, "bottle"),
+            new TargetClass(ChairClassIndex, "chair"),
+            new TargetClass(CouchClassIndex, "couch"),
+            new TargetClass(PlantClassIndex, "plant"),
+            new TargetClass(TableClassIndex, "table")
         };
 
         [Header("Dependencies")]
         [SerializeField] private ModelAsset modelAsset;
-        [Tooltip("Optional YOLO segmentation ONNX. When assigned, it replaces the detection-only model and supplies a cup mask.")]
+        [Tooltip("Optional YOLO segmentation ONNX. When assigned, it replaces the detection-only model and supplies object masks.")]
         [SerializeField] private ModelAsset segmentationModelAsset;
         [SerializeField] private ARCameraFrameProvider frameProvider;
 
@@ -154,7 +168,7 @@ namespace AR80sRetro
                 if (segmentationModelAsset == null)
                 {
                     Debug.LogWarning(
-                        "Cup segmentation ONNX is not assigned. Dynamic sizing is using the detector-box/depth fallback, not a pixel mask.",
+                        "Segmentation ONNX is not assigned. Dynamic sizing is using detector boxes and depth, not pixel masks.",
                         this);
                 }
                 else if (runtimeOutputCount < 2)

@@ -15,11 +15,11 @@ MonoBehaviour:
   rules:
   - detectionLabel: phone
     prefab: {fileID: 6591014151576691776, guid: 6d1afbaddff8dd941bcd93bc4015be48, type: 3}
-    spawnScale: {x: 10, y: 10, z: 10}
+    spawnScale: {x: 0.07, y: 0.15, z: 0.008}
     verticalOffsetMeters: 0
     raycastAnchorInBoundingBox: {x: 0.5, y: 0.85}
-    rotationOffsetEuler: {x: 0, y: 180, z: 0}
-    scaleCalibrationMultiplier: 1.4
+    rotationOffsetEuler: {x: 0, y: 0, z: 0}
+    scaleCalibrationMultiplier: 1
     minConfidence: 0.45
     trackingMinConfidence: 0.3
     confirmationFrames: 1
@@ -30,11 +30,29 @@ MonoBehaviour:
     estimatedWidthMultiplier: 0.9
     scaleMultiplierRange: {x: 0.25, y: 8}
     useAprilTagPose: 1
-    aprilTagId: -1
-    aprilTagTrackedImageName: 
-    aprilTagToObjectOffsetMeters: {x: 0, y: 0, z: 0}
+    aprilTagId: 4
+    aprilTagTrackedImageName:
+    aprilTagToObjectOffsetMeters: {x: 0, y: 0, z: 0.004}
     aprilTagToObjectRotationEuler: {x: 0, y: 0, z: 0}
     aprilTagMaxPoseAgeSeconds: 0.35
+    additionalAprilTagMounts:
+    - tagId: 5
+      trackedImageName:
+      tagToObjectRotationEuler: {x: 0, y: 180, z: 0}
+      overrideCupCenterOffset: 0
+      tagToCupCenterDirection: {x: 0, y: 0, z: 1}
+      useCupHeightForCenterDistance: 0
+      tagMountStandoffMeters: 0
+    enableAutomaticCupRegistration: 0
+    cupRegistrationSamples: 3
+    minimumRegistrationViewAngleDegrees: 0
+    minimumRegistrationMeasurementConfidence: 0.2
+    useStandardCupTagMount: 0
+    tagToCupCenterDirection: {x: 0, y: 0, z: 1}
+    tagMountStandoffMeters: 0
+    fitMeasuredWidthAndHeight: 0
+    maximumNonUniformScaleRatio: 1.8
+    tagLostVisualFallbackSeconds: 0.8
   - detectionLabel: cup
     prefab: {fileID: 6759112859541804290, guid: 422aab88cfa072f47b4339b9d444bd03, type: 3}
     spawnScale: {x: 10, y: 10, z: 10}
@@ -91,11 +109,11 @@ MonoBehaviour:
     tagLostVisualFallbackSeconds: 0.8
   - detectionLabel: tv
     prefab: {fileID: 3860385251880703525, guid: 275e51c1632a68a4da78c6ecfdfdc17f, type: 3}
-    spawnScale: {x: 10, y: 10, z: 10}
+    spawnScale: {x: 0.8, y: 0.45, z: 0.05}
     verticalOffsetMeters: 0
     raycastAnchorInBoundingBox: {x: 0.5, y: 0.95}
     rotationOffsetEuler: {x: 0, y: 180, z: 0}
-    scaleCalibrationMultiplier: 1.5
+    scaleCalibrationMultiplier: 1
     minConfidence: 0.45
     trackingMinConfidence: 0.3
     confirmationFrames: 1
@@ -106,18 +124,29 @@ MonoBehaviour:
     estimatedWidthMultiplier: 1
     scaleMultiplierRange: {x: 0.25, y: 8}
     useAprilTagPose: 1
-    aprilTagId: -1
+    aprilTagId: 6
     aprilTagTrackedImageName: 
-    aprilTagToObjectOffsetMeters: {x: 0, y: 0, z: 0}
+    aprilTagToObjectOffsetMeters: {x: 0, y: 0.225, z: 0.025}
     aprilTagToObjectRotationEuler: {x: 0, y: 0, z: 0}
     aprilTagMaxPoseAgeSeconds: 0.35
+    additionalAprilTagMounts: []
+    enableAutomaticCupRegistration: 0
+    cupRegistrationSamples: 3
+    minimumRegistrationViewAngleDegrees: 0
+    minimumRegistrationMeasurementConfidence: 0.2
+    useStandardCupTagMount: 0
+    tagToCupCenterDirection: {x: 0, y: 0, z: 1}
+    tagMountStandoffMeters: 0
+    fitMeasuredWidthAndHeight: 0
+    maximumNonUniformScaleRatio: 1.8
+    tagLostVisualFallbackSeconds: 0.8
   - detectionLabel: bottle
-    prefab: {fileID: 9156859731359552179, guid: ccf9bb85c3a3b2a4cacc8792c96fe999, type: 3}
-    spawnScale: {x: 10, y: 10, z: 10}
+    prefab: {fileID: 0}
+    spawnScale: {x: 0.08, y: 0.24, z: 0.08}
     verticalOffsetMeters: 0
     raycastAnchorInBoundingBox: {x: 0.5, y: 0.95}
-    rotationOffsetEuler: {x: 0, y: 180, z: 0}
-    scaleCalibrationMultiplier: 1.4
+    rotationOffsetEuler: {x: 0, y: 0, z: 0}
+    scaleCalibrationMultiplier: 1
     minConfidence: 0.45
     trackingMinConfidence: 0.3
     confirmationFrames: 1
@@ -128,18 +157,29 @@ MonoBehaviour:
     estimatedWidthMultiplier: 0.9
     scaleMultiplierRange: {x: 0.25, y: 8}
     useAprilTagPose: 1
-    aprilTagId: -1
+    aprilTagId: 7
     aprilTagTrackedImageName: 
-    aprilTagToObjectOffsetMeters: {x: 0, y: 0, z: 0}
+    aprilTagToObjectOffsetMeters: {x: 0, y: 0, z: 0.04}
     aprilTagToObjectRotationEuler: {x: 0, y: 0, z: 0}
     aprilTagMaxPoseAgeSeconds: 0.35
+    additionalAprilTagMounts: []
+    enableAutomaticCupRegistration: 0
+    cupRegistrationSamples: 3
+    minimumRegistrationViewAngleDegrees: 0
+    minimumRegistrationMeasurementConfidence: 0.2
+    useStandardCupTagMount: 0
+    tagToCupCenterDirection: {x: 0, y: 0, z: 1}
+    tagMountStandoffMeters: 0
+    fitMeasuredWidthAndHeight: 0
+    maximumNonUniformScaleRatio: 1.8
+    tagLostVisualFallbackSeconds: 0.8
   - detectionLabel: chair
-    prefab: {fileID: 7020758092765886102, guid: ac1b054d14ee089498ee3433be3ff942, type: 3}
-    spawnScale: {x: 8, y: 8, z: 8}
+    prefab: {fileID: 0}
+    spawnScale: {x: 0.5, y: 0.9, z: 0.5}
     verticalOffsetMeters: 0
     raycastAnchorInBoundingBox: {x: 0.5, y: 0.95}
-    rotationOffsetEuler: {x: 0, y: 180, z: 0}
-    scaleCalibrationMultiplier: 1.8
+    rotationOffsetEuler: {x: 0, y: 0, z: 0}
+    scaleCalibrationMultiplier: 1
     minConfidence: 0.45
     trackingMinConfidence: 0.3
     confirmationFrames: 1
@@ -150,18 +190,29 @@ MonoBehaviour:
     estimatedWidthMultiplier: 1.1
     scaleMultiplierRange: {x: 0.25, y: 10}
     useAprilTagPose: 1
-    aprilTagId: -1
+    aprilTagId: 8
     aprilTagTrackedImageName: 
-    aprilTagToObjectOffsetMeters: {x: 0, y: 0, z: 0}
+    aprilTagToObjectOffsetMeters: {x: 0, y: 0, z: 0.25}
     aprilTagToObjectRotationEuler: {x: 0, y: 0, z: 0}
     aprilTagMaxPoseAgeSeconds: 0.35
+    additionalAprilTagMounts: []
+    enableAutomaticCupRegistration: 0
+    cupRegistrationSamples: 3
+    minimumRegistrationViewAngleDegrees: 0
+    minimumRegistrationMeasurementConfidence: 0.2
+    useStandardCupTagMount: 0
+    tagToCupCenterDirection: {x: 0, y: 0, z: 1}
+    tagMountStandoffMeters: 0
+    fitMeasuredWidthAndHeight: 0
+    maximumNonUniformScaleRatio: 1.8
+    tagLostVisualFallbackSeconds: 0.8
   - detectionLabel: couch
-    prefab: {fileID: 6311426428645656921, guid: 82953f9de86496b4faac69e70ce3ef31, type: 3}
-    spawnScale: {x: 10, y: 10, z: 10}
+    prefab: {fileID: 0}
+    spawnScale: {x: 1.8, y: 1, z: 0.8}
     verticalOffsetMeters: 0
     raycastAnchorInBoundingBox: {x: 0.5, y: 0.95}
-    rotationOffsetEuler: {x: 0, y: 180, z: 0}
-    scaleCalibrationMultiplier: 2
+    rotationOffsetEuler: {x: 0, y: 0, z: 0}
+    scaleCalibrationMultiplier: 1
     minConfidence: 0.45
     trackingMinConfidence: 0.3
     confirmationFrames: 1
@@ -172,18 +223,29 @@ MonoBehaviour:
     estimatedWidthMultiplier: 1.15
     scaleMultiplierRange: {x: 0.25, y: 12}
     useAprilTagPose: 1
-    aprilTagId: -1
+    aprilTagId: 9
     aprilTagTrackedImageName: 
-    aprilTagToObjectOffsetMeters: {x: 0, y: 0, z: 0}
+    aprilTagToObjectOffsetMeters: {x: 0, y: 0, z: 0.4}
     aprilTagToObjectRotationEuler: {x: 0, y: 0, z: 0}
     aprilTagMaxPoseAgeSeconds: 0.35
+    additionalAprilTagMounts: []
+    enableAutomaticCupRegistration: 0
+    cupRegistrationSamples: 3
+    minimumRegistrationViewAngleDegrees: 0
+    minimumRegistrationMeasurementConfidence: 0.2
+    useStandardCupTagMount: 0
+    tagToCupCenterDirection: {x: 0, y: 0, z: 1}
+    tagMountStandoffMeters: 0
+    fitMeasuredWidthAndHeight: 0
+    maximumNonUniformScaleRatio: 1.8
+    tagLostVisualFallbackSeconds: 0.8
   - detectionLabel: plant
-    prefab: {fileID: 5576067589871077033, guid: af939adc76e1be34387f8a1721bc2b97, type: 3}
-    spawnScale: {x: 10, y: 10, z: 10}
+    prefab: {fileID: 0}
+    spawnScale: {x: 0.4, y: 0.8, z: 0.4}
     verticalOffsetMeters: 0
     raycastAnchorInBoundingBox: {x: 0.5, y: 0.95}
-    rotationOffsetEuler: {x: 0, y: 180, z: 0}
-    scaleCalibrationMultiplier: 1.6
+    rotationOffsetEuler: {x: 0, y: 0, z: 0}
+    scaleCalibrationMultiplier: 1
     minConfidence: 0.45
     trackingMinConfidence: 0.3
     confirmationFrames: 1
@@ -194,18 +256,29 @@ MonoBehaviour:
     estimatedWidthMultiplier: 1
     scaleMultiplierRange: {x: 0.25, y: 8}
     useAprilTagPose: 1
-    aprilTagId: -1
+    aprilTagId: 10
     aprilTagTrackedImageName: 
-    aprilTagToObjectOffsetMeters: {x: 0, y: 0, z: 0}
+    aprilTagToObjectOffsetMeters: {x: 0, y: 0, z: 0.2}
     aprilTagToObjectRotationEuler: {x: 0, y: 0, z: 0}
     aprilTagMaxPoseAgeSeconds: 0.35
+    additionalAprilTagMounts: []
+    enableAutomaticCupRegistration: 0
+    cupRegistrationSamples: 3
+    minimumRegistrationViewAngleDegrees: 0
+    minimumRegistrationMeasurementConfidence: 0.2
+    useStandardCupTagMount: 0
+    tagToCupCenterDirection: {x: 0, y: 0, z: 1}
+    tagMountStandoffMeters: 0
+    fitMeasuredWidthAndHeight: 0
+    maximumNonUniformScaleRatio: 1.8
+    tagLostVisualFallbackSeconds: 0.8
   - detectionLabel: table
-    prefab: {fileID: 6347436451444669302, guid: d42e13d311f1b76468b6560fa60aacd5, type: 3}
-    spawnScale: {x: 8, y: 8, z: 8}
+    prefab: {fileID: 0}
+    spawnScale: {x: 1.2, y: 0.75, z: 0.8}
     verticalOffsetMeters: 0
     raycastAnchorInBoundingBox: {x: 0.5, y: 0.95}
-    rotationOffsetEuler: {x: 0, y: 180, z: 0}
-    scaleCalibrationMultiplier: 2
+    rotationOffsetEuler: {x: 0, y: 0, z: 0}
+    scaleCalibrationMultiplier: 1
     minConfidence: 0.45
     trackingMinConfidence: 0.3
     confirmationFrames: 1
@@ -216,8 +289,53 @@ MonoBehaviour:
     estimatedWidthMultiplier: 1.15
     scaleMultiplierRange: {x: 0.25, y: 12}
     useAprilTagPose: 1
-    aprilTagId: -1
+    aprilTagId: 11
     aprilTagTrackedImageName: 
-    aprilTagToObjectOffsetMeters: {x: 0, y: 0, z: 0}
+    aprilTagToObjectOffsetMeters: {x: 0, y: 0, z: 0.4}
     aprilTagToObjectRotationEuler: {x: 0, y: 0, z: 0}
     aprilTagMaxPoseAgeSeconds: 0.35
+    additionalAprilTagMounts: []
+    enableAutomaticCupRegistration: 0
+    cupRegistrationSamples: 3
+    minimumRegistrationViewAngleDegrees: 0
+    minimumRegistrationMeasurementConfidence: 0.2
+    useStandardCupTagMount: 0
+    tagToCupCenterDirection: {x: 0, y: 0, z: 1}
+    tagMountStandoffMeters: 0
+    fitMeasuredWidthAndHeight: 0
+    maximumNonUniformScaleRatio: 1.8
+    tagLostVisualFallbackSeconds: 0.8
+  - detectionLabel: pen
+    prefab: {fileID: 500498597690342821, guid: 87aff9dc88f8d4db1953c185445ff627, type: 3}
+    spawnScale: {x: 1, y: 1, z: 1}
+    verticalOffsetMeters: 0
+    raycastAnchorInBoundingBox: {x: 0.5, y: 0.5}
+    rotationOffsetEuler: {x: 0, y: 0, z: 0}
+    scaleCalibrationMultiplier: 1
+    minConfidence: 0.45
+    trackingMinConfidence: 0.3
+    confirmationFrames: 1
+    positionSmoothing: 0.06
+    estimateScaleFromBoundingBox: 0
+    scaleBoundingBoxAxis: 0
+    estimatedHeightMultiplier: 1
+    estimatedWidthMultiplier: 1
+    scaleMultiplierRange: {x: 0.5, y: 2}
+    useAprilTagPose: 1
+    trackFromAprilTagWithoutYolo: 1
+    aprilTagId: 12
+    aprilTagTrackedImageName:
+    aprilTagToObjectOffsetMeters: {x: 0, y: 0, z: 0.006}
+    aprilTagToObjectRotationEuler: {x: 0, y: 0, z: 0}
+    aprilTagMaxPoseAgeSeconds: 0.2
+    additionalAprilTagMounts: []
+    enableAutomaticCupRegistration: 0
+    cupRegistrationSamples: 3
+    minimumRegistrationViewAngleDegrees: 0
+    minimumRegistrationMeasurementConfidence: 0.2
+    useStandardCupTagMount: 0
+    tagToCupCenterDirection: {x: 0, y: 0, z: 1}
+    tagMountStandoffMeters: 0
+    fitMeasuredWidthAndHeight: 0
+    maximumNonUniformScaleRatio: 1.8
+    tagLostVisualFallbackSeconds: 0
