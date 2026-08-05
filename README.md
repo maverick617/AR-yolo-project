@@ -1,125 +1,119 @@
-# YOLO + AprilTag 多物体 AR 替换
+# Tag Model AR
 
-这是一个 Unity AR Foundation 项目：YOLO 从相机画面中识别现实物体并给出检测框，AprilTag 提供该物体的唯一身份和 6DoF 位姿，系统随后在现实物体位置叠加对应的虚拟模型。不同类别使用互不重复的 Tag ID，因此多个物体出现在同一画面时可以同时创建并更新各自的替换模型。
+一个面向 Android / iOS 的最小 Unity AR Demo：用户在手机中导入自己的 `.glb` 3D 模型，摄像头识别任意 `tagStandard41h12` AprilTag 后，将模型放在 Tag 正面；拿起、平移或旋转 Tag 时，模型会以完整 6DoF 姿态持续跟随。
 
-## 工作方式
+这个版本没有 `Tag ID → 预置模型` 映射，也不依赖 YOLO。3D 模型来自用户运行时选择的文件，Tag 只负责提供锚点和尺度。
+
+## Demo 流程
 
 ```text
-AR 相机画面
-   ├── YOLO：识别 cup / phone / tv / bottle / chair / couch / plant / table
-   └── AprilTag：提供唯一 ID、世界位置和旋转
-                          │
-       “YOLO 类别规则包含该 Tag ID”且 Tag 投影靠近检测框
-                          │
-                          ▼
-              RetroReplacementManager
-                 ├── 为每个物体的专属 Tag 组保留一条轨迹
-                 ├── 同时更新多个物体
-                 ├── 按 YOLO 框与深度估计尺寸
-                 └── 只加载有效模型；缺失或加载失败时不替换
+用户选择 GLB
+      │
+      ├── 校验 glTF 2.0 二进制头与 100 MB 上限
+      ├── 运行时加载网格和材质
+      └── 按 Tag 物理尺寸等比例归一化模型
+                              │
+摄像头识别第一张 AprilTag ────┤
+                              ▼
+                  模型绑定该 Tag ID
+                              │
+                              ▼
+                 Tag 的位置和旋转逐帧更新模型
 ```
 
-YOLO 负责回答“这是什么物体、它在画面的哪里”，AprilTag 负责回答“这是哪一个实例、它在三维空间中的位置和方向”。仅靠 YOLO 的二维框不能稳定恢复被人拿起和旋转的物体姿态，因此需要至少一个属于该物体的可见 Tag。
+- 导入新 GLB 会替换当前模型。
+- 第一张被识别的 Tag 会成为稳定锚点；画面里出现其他 Tag 时不会抢走模型。
+- 点击 `REBIND TAG / 重新绑定` 可清除当前绑定，再绑定下一张可见 Tag。
+- 成功导入的模型会复制到 `Application.persistentDataPath`，App 下次启动自动恢复。
+- Tag 暂时离开画面时模型隐藏；同一 Tag ID 再次出现后继续跟随。
 
-笔是当前调试例外：COCO `yolov8n` 没有 `pen` 类，因此 ID `12` 会直接创建并跟踪复古笔模型，不等待 YOLO。它用于先校准笔模型相对 Tag 的位置和旋转；以后换成包含 `pen` 类的自定义 YOLO 时可再接入检测框尺寸。
+## 尺寸规则
 
-## Tag ID 分配
+手机界面提供 `20 / 30 / 50 / 80 / 100 mm` 五档 Tag 尺寸，默认 `30 mm`。
 
-使用 AprilRobotics `tagStandard41h12`，场景参数为 `tagSizeMeters = 0.01`。该尺寸按官方定义是两检测角之间的白/黑边界距离，不包含 PNG 外侧留白。官方文件的固定版本、校验脚本、正置方向和打印方法见 [AprilTag 官方正置与打印](APRILTAG_ORIENTATION_ZH.md)。
+选择值必须等于打印后 AprilTag 四个检测角点所围正方形的实际边长，不包含纸张外侧留白。尺寸不匹配会让位姿深度和模型大小按同一比例出错。
 
-| YOLO 类别 | AprilTag ID | 数量 | 当前替换视觉 |
-|---|---:|---:|---|
-| cup | `0、1、2、3` | 4 | 现有 cup 模型 |
-| phone | `4、5` | 2 | Old Nokia 复古手机模型 |
-| tv / 显示屏 | `6` | 1 | 现有 TV 模型 |
-| bottle | `7` | 1 | 暂无模型，不替换 |
-| chair | `8` | 1 | 暂无模型，不替换 |
-| couch | `9` | 1 | 暂无模型，不替换 |
-| plant | `10` | 1 | 暂无模型，不替换 |
-| table | `11` | 1 | 暂无模型，不替换 |
-| pen | `12` | 1 | Old Pen 复古笔模型；Tag-only 调试 |
+当前模型尺寸公式为：
 
-Tag ID 不得在不同类别之间复用。程序启动时会校验资源表；如果两个类别使用同一个数字，会在 Console 中报错。
+```text
+模型最长边 = Tag 实际边长 × 3
+```
 
-当前 cup + phone + TV + pen 一共需要 **8 张 Tag**：
+例如选择 `30 mm`，导入模型的最长渲染边会被归一化为 `90 mm`。模型保持原始长宽高比例、水平居中，并把最低点贴到 Tag 平面。模型本地 `+Y` 朝向 Tag 正面法线，Tag 图片的上边决定模型正前方。
 
-- cup 使用 ID `0–3`，共 4 张；
-- phone 使用 ID `4、5`，共 2 张；
-- TV/显示屏使用 ID `6`，共 1 张。
-- pen 使用 ID `12`，共 1 张。
-
-所有规则共保留 ID `0–12`。同一画面中只会替换已经配置有效 Prefab 的 cup、phone、TV、pen；另外五类虽然保留独立 Tag，但在模型缺失时会被明确跳过。
-
-## 每个 Tag 的粘贴位置
-
-以下“上边”都指官方 PNG 文件未经旋转时的图像上边。所有 Tag 必须平整，印刷正面朝物体外部，禁止镜像、翻转或用倒置 PNG 代替代码中的旋转。
-
-| Tag | 对应物体 | 必须粘贴的位置 | 官方 PNG 上边方向 |
-|---:|---|---|---|
-| `0` | cup | 俯视把手朝 3 点时，贴在杯身 9 点方向、把手正对面；中心位于杯身高度中点 | 朝杯口 |
-| `1` | cup | 俯视把手朝 3 点时，贴在杯身 1 点方向；与 ID 0/2 位于同一高度带 | 朝杯口 |
-| `2` | cup | 俯视把手朝 3 点时，贴在杯身 5 点方向；与 ID 0/1 位于同一高度带 | 朝杯口 |
-| `3` | cup | 平贴在杯底几何中心，杯子正放时 Tag 正面朝下 | 指向杯把 |
-| `4` | phone | 手机背面几何中心，纸面与背面平行 | 朝手机顶部 |
-| `5` | phone | 手机正面几何中心，纸面与屏幕平行 | 朝手机顶部 |
-| `6` | TV / 显示屏 | **朝向使用者一面的下边框正中间**，不要贴在底座或偏向一侧 | 朝显示屏顶部 |
-| `7` | bottle | 瓶身正面中部，不贴瓶盖或瓶颈 | 朝瓶口 |
-| `8` | chair | 椅背朝向使用者一面的几何中心 | 朝椅背顶部 |
-| `9` | couch | 沙发靠背朝向使用者一面的几何中心 | 朝靠背顶部 |
-| `10` | plant | 花盆朝向使用者一面的几何中心，不贴在叶片上 | 朝植物顶部 |
-| `11` | table | 桌子正面横梁/桌沿的正中间，Tag 平面保持竖直 | 朝桌面 |
-| `12` | pen | 笔杆长度方向的正中部；用平整小卡片固定在笔杆侧面，不要把 Tag 弯曲包住笔杆 | 朝笔尖 |
-
-手机采用正反面双 Tag 连续追踪：系统在 ID `4` 和 `5` 之间交接同一条轨迹，两张同时可见也只保留一个手机模型。两张手机 Tag 都从标签平面向手机内部偏移 `4 mm` 到模型中心，适合约 `8 mm` 厚的手机。
-
-ID `6` 从电视下边框向上偏移 `22.5 cm`、向设备内部偏移 `2.5 cm` 到默认模型中心，对应约 `45 cm` 高、`5 cm` 厚的测试显示屏。实际设备尺寸明显不同时，应在 `Retro Prefab Library.asset` 中把 `aprilTagToObjectOffsetMeters.y` 调成“下边框 Tag 中心到屏幕几何中心的实测距离”，把 `.z` 调成设备厚度的一半。
-
-ID `12` 使用笔杆中点作为模型原点，默认从标签平面向笔杆内部偏移 `6 mm`。复古笔 Prefab 的笔尖已经统一为本地 `+Y`，所以 Tag 上边指向笔尖时，模型会按同一轴向跟随。杯子的详细安装和验收见 [Cup 真机配置说明](Assets/AR80sRetro/CUP_DEMO_SETUP_ZH.md)。
-
-## 同时替换多个物体
-
-`YoloObjectDetector` 每次推理可返回多条检测，`RetroReplacementManager` 会：
-
-- 只把 Tag 分配给声明了该 ID 的类别；
-- 当多个框接近同一个 Tag 时，只让最近的框使用它；
-- 使用每个物体的专属 Tag 组建立轨迹，避免 cup、phone、TV 等互相抢占；
-- 在手机正反面 Tag `4/5` 之间交接同一个手机实例；
-- 在 Tag 保持新鲜时逐帧更新完整 6DoF 位置和旋转，模型会随真实物体的俯仰、滚转和水平转动一起转动；
-- 让 ID `12` 的笔与 YOLO 物体同时作为独立轨迹运行；
-- Prefab 为空、实例化失败或没有有效网格时直接跳过，不创建长方体或其他替代物。
-
-因此一个画面中可以同时替换多个不同类别的物体；当前有有效模型的 cup、phone、TV、pen 可以一起存在。每个物体必须露出至少一张属于自己的 Tag。性能上限还取决于手机的 YOLO/Sentis 推理速度、相机清晰度、Tag 大小及遮挡情况。
-
-## 构建与测试
+## 快速开始
 
 1. 使用 Unity `2022.3.62f3` 打开项目。
-2. 维护和构建场景：`Assets/Scenes/SampleScene.unity`。
-3. 执行：
+2. 在 Unity Hub 安装目标平台模块：Android Build Support 或 iOS Build Support。
+3. 如需重新生成干净场景，执行：
 
    ```text
-   Tools > AR 80s Retro > Configure Build Scene (Multi-Object)
+   Tools > Tag Model AR > Rebuild Demo Scene
    ```
 
-4. 保存场景并重新构建设备 App。
-5. 首先分别测试 cup + ID `0`、phone + ID `4/5`（正反面翻转）、TV + ID `6`、pen + ID `12`。
-6. 再把 cup、phone、TV、pen 同时放入画面，确认四个模型同时存在并只跟随自己的 Tag。
+4. 打开并构建 [UserModelAR.unity](Assets/Scenes/UserModelAR.unity)。该场景已经是唯一启用的 Build Scene。
+5. 打印一张 `tagStandard41h12` Tag。可从 [AprilRobotics 官方 Tag 图片仓库](https://github.com/AprilRobotics/apriltag-imgs/tree/master/tagStandard41h12)选择任意 ID；不要拉伸、镜像或裁掉图案。
+6. 启动 App，在顶部选择实物 Tag 边长，点击 `IMPORT .GLB / 导入模型`，选择自己的 GLB。
+7. 把 Tag 正面放在桌面并对准摄像头。模型出现后拿起 Tag，模型会跟随它移动和旋转。
 
-共享相机纹理已经旋转到竖屏检测坐标，因此 `KeijiroAprilTagFrameDetector.compensateFrameRotation` 必须保持关闭。
+## 模型输入约束
 
-## 尺寸与视觉限制
+- 支持 glTF 2.0 二进制文件 `.glb`；暂不支持分离的 `.gltf + .bin + 贴图` 文件组。
+- 默认文件上限为 `100 MB`。
+- 支持静态 `MeshRenderer` 和 `SkinnedMeshRenderer` 网格；当前 Demo 不播放模型动画。
+- 为兼容 Android 文档提供器返回的不带扩展名临时文件，程序依据 GLB 文件头、版本和声明长度校验格式。
+- 建议在 Blender 等工具中导出嵌入贴图的 GLB，并在手机上使用较低面数和 1K/2K 贴图。
 
-- 当前 `yolov8n.onnx` 是 COCO detection 模型，不是分割模型。虚拟模型负责覆盖现实物体，但不会自动修复现实物体轮廓外露出的背景。
-- 环境深度可用时优先用深度把 YOLO 框换算为米；否则使用 Tag 到摄像头的距离作为透视回退。
-- cup 会收集 5 个同视角尺寸样本并锁定杯高和杯身直径；其他 YOLO 类别按有效检测框等比例缩放其模型。
-- 手机源模型在 Prefab 中按约 `6 × 15 × 2 cm` 的真实直板手机尺寸归一化，运行时仍会根据当前手机的 YOLO 框与深度等比例调整；TV 使用项目现有的复古 TV Prefab。
-- 笔 Prefab 按约 `1 × 14 × 1 cm` 归一化。Tag-only 调试模式没有 YOLO 笔框，因此使用该 14 cm 基准长度；需要匹配另一支笔时可调整 pen 规则的 `spawnScale`。
-- COCO 的 `tv` 类通常可以识别电视或显示器，但具体显示屏外观和角度仍会影响置信度。
-- 1 cm Tag 对焦和运动模糊较敏感。测试时应避免反光、折痕、手指遮挡和过远距离。
+## 代码结构
 
-## 环境
+```text
+Assets/TagModelAR/
+├── Scripts/
+│   ├── ARCameraFrameProvider.cs   # AR 相机 CPU 图像与相机内参
+│   ├── AprilTagDetector.cs        # tagStandard41h12 检测和世界位姿
+│   ├── AprilTagPoseSource.cs      # 按 ID 缓存、平滑及过期位姿
+│   └── UserModelTagController.cs  # 文件选择、GLB 加载、定尺、绑定和 UI
+└── Editor/
+    └── UserModelDemoSetup.cs      # 重建场景、Shader 配置和自动校验
+```
 
-- Unity 2022.3.62f3
-- Universal Render Pipeline 14
+如需接入自己的 UI 或文件来源，可以绕过原生文件选择器：
+
+```csharp
+await controller.ImportModelFromPathAsync(localGlbPath, saveAfterSuccess: true);
+```
+
+## 验证
+
+Unity 菜单提供：
+
+```text
+Tools > Tag Model AR > Validate Demo
+```
+
+它会检查最小 AR 场景所需组件，并验证任意长宽高模型能否按目标米制最长边正确缩放。项目也包含批处理入口：
+
+```text
+TagModelAREditor.UserModelDemoSetup.RebuildDemoSceneBatch
+TagModelAREditor.UserModelDemoSetup.ValidateDemoSceneBatch
+TagModelAREditor.UserModelDemoSetup.ValidateRuntimeGlbBatch
+```
+
+最后一个入口读取环境变量 `TAG_MODEL_AR_TEST_GLB`，对真实 GLB 的运行时加载与网格实例化执行 smoke test。
+
+## 已知范围
+
+- 当前版本是一张 Tag 对应一个用户模型；不是多模型同时跟踪系统。
+- AprilTag 的打印质量、反光、运动模糊、摄像头对焦和实物尺寸填写都会影响稳定性。
+- 编辑器可验证结构和 GLB 加载；最终 6DoF 跟随仍需要 Android / iPhone 真机验收。
+
+## 技术栈
+
+- Unity 2022.3 LTS
 - AR Foundation / ARCore / ARKit 5.2
-- Unity Sentis 2.1.3
-- Android minimum SDK 30
+- [Unity glTFast](https://github.com/Unity-Technologies/com.unity.cloud.gltfast) 6.14.1
+- [keijiro/AprilTag](https://github.com/keijiro/AprilTag) 1.0.3
+- [Native File Picker](https://github.com/yasirkula/UnityNativeFilePicker) 1.4.3（固定到提交版本）
+- Universal Render Pipeline 14
+
+项目代码采用 MIT License；第三方依赖许可见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
