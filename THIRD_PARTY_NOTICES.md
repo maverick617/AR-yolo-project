@@ -1,12 +1,15 @@
 # Third-party notices
 
-This project resolves third-party packages through Unity Package Manager. The packages retain their own copyright notices and license files.
+This project resolves third-party packages through Unity Package Manager. Each package retains its own copyright notice, license, and Unity package terms.
 
-| Dependency | Version | License |
-|---|---:|---|
-| Unity glTFast (`com.unity.cloud.gltfast`) | 6.14.1 | Apache-2.0 |
-| Native File Picker (`com.yasirkula.nativefilepicker`) | 1.4.3 / pinned commit | MIT |
-| AprilTag for Unity (`jp.keijiro.apriltag`) | 1.0.3 | BSD-2-Clause |
-| Unity AR Foundation, ARCore, ARKit and URP packages | see `Packages/manifest.json` | Unity package terms |
+| Dependency | Version |
+|---|---:|
+| AprilTag for Unity (`jp.keijiro.apriltag`) | 1.0.3 |
+| Unity AR Foundation | 5.2.0 |
+| Unity ARKit XR Plugin | 5.2.0 |
+| Unity ARCore XR Plugin | 5.2.0 |
+| Unity Sentis | 2.1.3 |
+| Unity XR Interaction Toolkit | 3.1.2 |
+| Unity Universal Render Pipeline | 14.0.12 |
 
-See each resolved package directory and upstream repository for the complete license text and any transitive notices.
+See the resolved package directories and their upstream repositories for the complete license texts and transitive notices.

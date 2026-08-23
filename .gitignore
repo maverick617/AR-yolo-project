@@ -36,10 +36,16 @@ Desktop.ini
 sysinfo.txt
 crashlytics-build.properties
 
+# Local YOLO tooling
+/.venv-yolo/
+/yolov8n.pt
+/Tools/output/
+
 # Builds and packages
 *.apk
 *.aab
 *.unitypackage
 
-# Optional Unity sample assets
-/Assets/Samples/
+# Large optional model assets
+*.fbx
+!Assets/AR80sRetro/Models/cup/Model/cup.fbx

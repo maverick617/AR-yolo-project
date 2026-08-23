@@ -12,8 +12,8 @@ PlayerSettings:
   targetDevice: 2
   useOnDemandResources: 0
   accelerometerFrequency: 60
-  companyName: Tag Model AR Contributors
-  productName: Tag Model AR
+  companyName: DefaultCompany
+  productName: ARm
   defaultCursor: {fileID: 0}
   cursorHotspot: {x: 0, y: 0}
   m_SplashScreenBackgroundColor: {r: 0.13725491, g: 0.12156863, b: 0.1254902, a: 1}
@@ -163,9 +163,9 @@ PlayerSettings:
   androidSupportedAspectRatio: 1
   androidMaxAspectRatio: 2.1
   applicationIdentifier:
-    Android: com.example.tagmodelar
-    Standalone: com.example.tagmodelar
-    iPhone: com.example.tagmodelar
+    Android: com.unnc.armemorytraining
+    Standalone: com.unity.template.ar-mobile
+    iPhone: com.yinhaochen.ARMemory
   buildNumber:
     Bratwurst: 0
     Standalone: 0
@@ -243,21 +243,21 @@ PlayerSettings:
   metalCompileShaderBinary: 0
   iOSRenderExtraFrameOnPause: 0
   iosCopyPluginsCodeInsteadOfSymlink: 0
-  appleDeveloperTeamID: 8S22JTQML7
+  appleDeveloperTeamID:
   iOSManualSigningProvisioningProfileID: 
   tvOSManualSigningProvisioningProfileID: 
   VisionOSManualSigningProvisioningProfileID: 
   iOSManualSigningProvisioningProfileType: 0
   tvOSManualSigningProvisioningProfileType: 0
   VisionOSManualSigningProvisioningProfileType: 0
-  appleEnableAutomaticSigning: 1
+  appleEnableAutomaticSigning: 0
   iOSRequireARKit: 0
   iOSAutomaticallyDetectAndAddCapabilities: 1
   appleEnableProMotion: 0
   shaderPrecisionModel: 0
   clonedFromGUID: 069202b91adc77e41923adcf0d1b815b
   templatePackageId: com.unity.template.ar-mobile@1.1.1
-  templateDefaultScene: Assets/Scenes/UserModelAR.unity
+  templateDefaultScene: Assets/Scenes/SampleScene.unity
   useCustomMainManifest: 0
   useCustomLauncherManifest: 0
   useCustomMainGradleTemplate: 0
@@ -266,7 +266,7 @@ PlayerSettings:
   useCustomGradlePropertiesTemplate: 0
   useCustomGradleSettingsTemplate: 0
   useCustomProguardFile: 0
-  AndroidTargetArchitectures: 2
+  AndroidTargetArchitectures: 3
   AndroidTargetDevices: 0
   AndroidSplashScreenScale: 0
   androidSplashScreen: {fileID: 0}
@@ -552,7 +552,7 @@ PlayerSettings:
   enableInternalProfiler: 0
   logObjCUncaughtExceptions: 1
   enableCrashReportAPI: 0
-  cameraUsageDescription: The camera is used to detect AprilTags and place your 3D model in augmented reality.
+  cameraUsageDescription: The camera is used to detect a cup and AprilTags for augmented reality tracking.
   locationUsageDescription: 
   microphoneUsageDescription: 
   bluetoothUsageDescription: 
@@ -805,9 +805,7 @@ PlayerSettings:
   webGLMemoryGeometricGrowthCap: 96
   webGLPowerPreference: 2
   scriptingDefineSymbols:
-    Android: GLTFAST_SAFE
-    Standalone: GLTFAST_SAFE
-    iPhone: UNITY_XR_ARKIT_LOADER_ENABLED;GLTFAST_SAFE
+    iPhone: UNITY_XR_ARKIT_LOADER_ENABLED
   additionalCompilerArguments: {}
   platformArchitecture: {}
   scriptingBackend:
@@ -835,19 +833,19 @@ PlayerSettings:
   useDeterministicCompilation: 1
   additionalIl2CppArgs: 
   scriptingRuntimeVersion: 1
-  gcIncremental: 1
+  gcIncremental: 0
   gcWBarrierValidation: 0
   apiCompatibilityLevelPerPlatform: {}
   m_RenderingPath: 1
   m_MobileRenderingPath: 1
-  metroPackageName: TagModelAR
+  metroPackageName: ARm
   metroPackageVersion: 
   metroCertificatePath: 
   metroCertificatePassword: 
   metroCertificateSubject: 
   metroCertificateIssuer: 
   metroCertificateNotAfter: 0000000000000000
-  metroApplicationDescription: Tag Model AR
+  metroApplicationDescription: ARm
   wsaImages: {}
   metroTileShortName: 
   metroTileShowName: 0
@@ -919,7 +917,7 @@ PlayerSettings:
   cloudProjectId: 3ee23ee4-154e-4323-8931-81a7905619f0
   framebufferDepthMemorylessMode: 0
   qualitySettingsNames: []
-  projectName: Tag Model AR
+  projectName: ARm
   organizationId: hpcca
   cloudEnabled: 0
   legacyClampBlendShapeWeights: 0
