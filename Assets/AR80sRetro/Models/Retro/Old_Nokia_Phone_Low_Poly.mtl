@@ -1,0 +1,19 @@
+# Converted locally from Old Nokia Phone Low Poly.glb.
+newmtl back
+Kd 0.8000000 0.8000000 0.8000000
+d 1.0000000
+Ns 75.4717
+illum 2
+
+newmtl side
+Kd 0.8000000 0.8000000 0.8000000
+d 1.0000000
+Ns 295.5975
+illum 2
+
+newmtl screen
+Kd 0.8000000 0.8000000 0.8000000
+d 1.0000000
+Ns 500.0000
+illum 2
+

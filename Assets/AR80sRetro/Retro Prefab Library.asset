@@ -1,0 +1,78 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c7d0978ea3422694b8e1db970f4ad480, type: 3}
+  m_Name: Retro Prefab Library
+  m_EditorClassIdentifier: 
+  rules:
+  - detectionLabel: phone
+    prefab: {fileID: 5863021758042436542, guid: ad8603af11f12406d8b48f8dea4ee775, type: 3}
+    spawnScale: {x: 1, y: 1, z: 1}
+    verticalOffsetMeters: 0
+    rotationOffsetEuler: {x: 0, y: 0, z: 0}
+    scaleCalibrationMultiplier: 1
+    scaleBoundingBoxAxis: 2
+  - detectionLabel: cup
+    prefab: {fileID: 5946232745390336064, guid: 20bd3dcc4ae634c2ab1cbfc58f91bd18, type: 3}
+    spawnScale: {x: 1, y: 1, z: 1}
+    verticalOffsetMeters: 0
+    rotationOffsetEuler: {x: 0, y: 0, z: 0}
+    scaleCalibrationMultiplier: 1
+    scaleBoundingBoxAxis: 0
+  - detectionLabel: tv
+    prefab: {fileID: 0}
+    spawnScale: {x: 10, y: 10, z: 10}
+    verticalOffsetMeters: 0
+    rotationOffsetEuler: {x: 0, y: 180, z: 0}
+    scaleCalibrationMultiplier: 1.5
+    scaleBoundingBoxAxis: 2
+  - detectionLabel: bottle
+    prefab: {fileID: 4117773786379264321, guid: 70f31fb53b456437fabeee176f480634, type: 3}
+    spawnScale: {x: 1, y: 1, z: 1}
+    verticalOffsetMeters: 0
+    rotationOffsetEuler: {x: 0, y: 180, z: 0}
+    scaleCalibrationMultiplier: 1
+    scaleBoundingBoxAxis: 0
+  - detectionLabel: chair
+    prefab: {fileID: 0}
+    spawnScale: {x: 8, y: 8, z: 8}
+    verticalOffsetMeters: 0
+    rotationOffsetEuler: {x: 0, y: 180, z: 0}
+    scaleCalibrationMultiplier: 1.8
+    scaleBoundingBoxAxis: 2
+  - detectionLabel: couch
+    prefab: {fileID: 0}
+    spawnScale: {x: 10, y: 10, z: 10}
+    verticalOffsetMeters: 0
+    rotationOffsetEuler: {x: 0, y: 180, z: 0}
+    scaleCalibrationMultiplier: 2
+    scaleBoundingBoxAxis: 2
+  - detectionLabel: plant
+    prefab: {fileID: 0}
+    spawnScale: {x: 10, y: 10, z: 10}
+    verticalOffsetMeters: 0
+    rotationOffsetEuler: {x: 0, y: 180, z: 0}
+    scaleCalibrationMultiplier: 1.6
+    scaleBoundingBoxAxis: 2
+  - detectionLabel: table
+    prefab: {fileID: 0}
+    spawnScale: {x: 8, y: 8, z: 8}
+    verticalOffsetMeters: 0
+    rotationOffsetEuler: {x: 0, y: 180, z: 0}
+    scaleCalibrationMultiplier: 2
+    scaleBoundingBoxAxis: 2
+  - detectionLabel: pen
+    prefab: {fileID: 6788665982367206247, guid: d8dc61d0eaf7c421390d3a70fdb21412, type: 3}
+    spawnScale: {x: 1, y: 1, z: 1}
+    verticalOffsetMeters: 0
+    rotationOffsetEuler: {x: 0, y: 0, z: 0}
+    scaleCalibrationMultiplier: 1
+    scaleBoundingBoxAxis: 2

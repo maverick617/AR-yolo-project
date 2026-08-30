@@ -1,0 +1,9 @@
+Old Pen
+
+Author: djetty
+Source: https://sketchfab.com/3d-models/old-pen-7a09c75d40e84b10acfd4f8c40e08375
+License: Creative Commons Attribution 4.0 International (CC BY 4.0)
+License text: https://creativecommons.org/licenses/by/4.0/
+
+The OBJ/MTL files were converted locally from the downloaded GLB for native
+Unity import. Geometry authorship and the original license remain unchanged.

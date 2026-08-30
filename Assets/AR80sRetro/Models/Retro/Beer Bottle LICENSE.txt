@@ -1,0 +1,10 @@
+Beer Bottle
+
+Author: gelmi.com.br (Rodrigo Gelmi)
+Source: https://sketchfab.com/3d-models/beer-bottle-c3de7f8b092e4092aef14d4ffc9fac7f
+License: Creative Commons Attribution 4.0 International (CC BY 4.0)
+License text: https://creativecommons.org/licenses/by/4.0/
+
+The OBJ/MTL files in this directory were converted locally from the downloaded
+GLB so Unity can import the model without an additional glTF package. Geometry
+authorship and the original license remain unchanged.

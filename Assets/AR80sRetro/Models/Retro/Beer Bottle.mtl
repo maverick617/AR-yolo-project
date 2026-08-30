@@ -1,0 +1,31 @@
+# Converted locally from beer_bottle.glb for Unity native OBJ import.
+newmtl VIDRO_FORA
+Kd 0.0334661 0.1055604 0.0179788
+d 0.2500000
+Ns 441.3833
+illum 2
+
+newmtl VIDRO_DENTRO
+Kd 0.0848925 0.2088610 0.0544206
+d 1.0000000
+Ns 200.0000
+illum 2
+
+newmtl LIQUIDO
+Kd 0.5676970 0.6000000 0.2187960
+d 0.5854067
+Ns 200.0000
+illum 2
+
+newmtl TAMPA
+Kd 0.0000000 0.0886076 0.0257913
+d 1.0000000
+Ns 423.1428
+illum 2
+
+newmtl LIMITE_LIQUIDO
+Kd 0.1753472 0.1753472 0.1753472
+d 1.0000000
+Ns 328.9001
+illum 2
+

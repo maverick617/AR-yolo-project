@@ -1,0 +1,9 @@
+Old Nokia Phone Low Poly
+
+Author: KI NG (dadybandit)
+Source: https://sketchfab.com/3d-models/old-nokia-phone-low-poly-a022864ae7b642a39469652c3eda2b9a
+License: Creative Commons Attribution 4.0 International (CC BY 4.0)
+License text: https://creativecommons.org/licenses/by/4.0/
+
+The OBJ/MTL files were converted locally from the downloaded GLB for native
+Unity import. Geometry authorship and the original license remain unchanged.
