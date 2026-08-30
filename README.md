@@ -1,13 +1,12 @@
-# 三 AprilTag 杯子 AR 替换实验
+# Three-AprilTag Cup AR Replacement Experiment
 
-本项目只处理一个类别：`cup`。系统用 YOLO 确认杯子并估计尺寸，用固定在同一个杯子侧面的三个 AprilTag（ID `0`、`1`、`2`）提供 6DoF 位姿，再把三种 Tag 位姿转换到同一个“杯身中心 + 把手方向”坐标系，最终只显示一个复古杯模型。
+This project handles a single class: `cup`. YOLO confirms the presence of a cup and estimates its dimensions, while three AprilTags (IDs `0`, `1`, and `2`) rigidly attached to the sides of the same cup provide 6DoF poses. The three Tag poses are transformed into a shared coordinate frame defined by the cup-body center and handle direction, so the system ultimately displays only one retro cup model.
 
-## 方法
+## Approach
 
 ```text
 AR Camera
-  ├─ YOLO cup detection ──> 2D box / class / size samples
-  ├─ AR depth (optional) ─> metric size assistance
+  ├─ YOLO cup-like detection ─> 2D box / class / size
   └─ AprilTag 0/1/2 ─────> 6DoF tag pose
                                 │
                  known rigid Tag-to-cup transform
@@ -19,87 +18,91 @@ AR Camera
                       retro cup replacement
 ```
 
-- YOLO 负责确认画面中的目标是杯子，防止仅看到一个孤立 Tag 就生成模型。
-- 程序在普通视角连续收集 5 个有效杯框/深度样本并取中值，锁定杯高和杯身直径；不需要绕杯扫描。
-- AprilTag 负责平移、旋转、倾斜和标签之间的接力。任何时刻看到一个已配置 Tag 即可更新完整位姿。
-- 三个 Tag 共用一个 track，切换 ID 时不会生成第二个杯模型。
-- 所有 Tag 暂时消失时，程序最多约 `0.8 s` 用 YOLO/深度修正位置并保持最后旋转；二维框无法恢复人手在遮挡期间产生的未知旋转。
+- YOLO verifies that the target in the camera view is a cup, preventing the model from appearing when only an isolated Tag is visible. For transparent cups, the COCO `cup`, `wine glass`, and `bowl` classes are all normalized into `cup` candidates for this experiment.
+- Cup height and body diameter are initialized on the first frame that contains both a valid cup-like bounding box and any valid Tag. The system no longer waits for five frames, and no scan around the cup is required.
+- AprilTag tracking provides translation, rotation, tilt, and handoff between Tags. A complete pose can be updated whenever any configured Tag is visible.
+- All three Tags share one track, so switching IDs does not create a second cup model.
+- If all Tags temporarily disappear, the system uses the YOLO box to correct position while retaining the last rotation for up to approximately `0.8 s`. A 2D box cannot recover unknown rotations caused by the user moving the cup while the Tags are occluded.
+- This AprilTag control experiment disables LiDAR depth and AR plane visualization. Metric dimensions are estimated jointly from Tag distance and the YOLO box.
 
-## 三个 Tag 的实体安装
+## Physical Setup of the Three Tags
 
-使用 AprilRobotics `tagStandard41h12` 的 ID `0`、`1`、`2`。每个图案的**黑色有效方形**边长为 `1 cm`，白色外边不计入；场景中的 `tagSizeMeters` 必须为 `0.01`。
+Use IDs `0`, `1`, and `2` from the AprilRobotics `tagStandard41h12` family. The **active black square** of each pattern must have a side length of `1 cm`; the outer white border is not included. The scene's `tagSizeMeters` value must be `0.01`.
 
-俯视杯子，并令实体把手指向 3 点钟方向：
+Viewed from above, with the physical handle pointing toward 3 o'clock:
 
 ```text
-                         12 点
-                              ID 1（1 点）
+                         12 o'clock
+                              ID 1 (1 o'clock)
 
- ID 0（9 点）          杯身中心          把手（3 点）
+ ID 0 (9 o'clock)       cup-body center       handle (3 o'clock)
 
-                              ID 2（5 点）
-                          6 点
+                              ID 2 (5 o'clock)
+                          6 o'clock
 ```
 
-安装要求：
+Mounting requirements:
 
-1. ID `0` 位于 9 点，正对把手；ID `1` 位于 1 点；ID `2` 位于 5 点。不要交换 ID `1` 和 `2`。
-2. 三个 Tag 的中心都位于杯身高度中点附近，并处于同一水平带。
-3. 每个 Tag 正面沿杯身半径朝外，图案上边都朝杯口。
-4. 标签必须刚性固定并尽量平整。曲面明显时使用小型平面卡座；卡座厚度需填入 `tagMountStandoffMeters`。
-5. 不使用 ID `3`，杯底也不贴 Tag。
+1. Place ID `0` at 9 o'clock, directly opposite the handle; ID `1` at 1 o'clock; and ID `2` at 5 o'clock. Do not swap IDs `1` and `2`.
+2. Position the centers of all three Tags near the midpoint of the cup body's height and within the same horizontal band.
+3. Face each Tag outward along the cup's radius, with the top edge of every pattern pointing toward the rim.
+4. Mount the Tags rigidly and keep them as flat as possible. If the cup is noticeably curved, use a small flat holder and enter its thickness in `tagMountStandoffMeters`.
+5. Do not use ID `3` or attach a Tag to the bottom of the cup.
 
-当前 Tag→杯子旋转配置为：
+The current Tag-to-cup rotation configuration is:
 
-| Tag | 安装位置 | `tagToObjectRotationEuler` |
+| Tag | Mount position | `tagToObjectRotationEuler` |
 |---|---|---|
-| 0 | 9 点 | `(0, -90, 0)` |
-| 1 | 1 点 | `(0, 150, 0)` |
-| 2 | 5 点 | `(0, 30, 0)` |
+| 0 | 9 o'clock | `(0, -90, 0)` |
+| 1 | 1 o'clock | `(0, 150, 0)` |
+| 2 | 5 o'clock | `(0, 30, 0)` |
 
-Keijiro AprilTag 的本地 `+Z` 指向图案背面/杯心，所以三个 mount 的杯心方向均为 `(0, 0, +1)`。安装位置、ID、图案上边方向和上述旋转是同一套约定；任何一项改变都会产生固定的位置或把手角度误差。
+Keijiro AprilTag's local `+Z` axis points through the back of the pattern toward the cup center, so the cup-center direction for all three mounts is `(0, 0, +1)`. The mount positions, IDs, pattern top-edge directions, and rotations above form a single convention. Changing any one of them introduces a fixed position or handle-angle error.
 
-## Unity 配置与真机运行
+## Unity Setup and On-Device Testing
 
-1. 用 Unity `2022.3.62f3` 打开项目。
-2. 打开唯一构建场景：`Assets/Scenes/SampleScene.unity`。
-3. 执行 `Tools > AR 80s Retro > Configure Build Scene (3-Tag Cup)`。该命令会验证三个 mount 的几何关系、连接相机/深度/YOLO/AprilTag 组件并保存场景。
-4. 确认 Build Settings 只包含 `Assets/Scenes/SampleScene.unity`。
-5. 构建并安装到支持 ARKit 的 iPhone。建议先使用竖屏，并在约 `15–30 cm` 距离测试。
-6. 首次画面同时包含完整杯子和 ID `0`，静止约 `1–2 s`。进入 `TRACKING CUP` 后，再缓慢转动到 ID `1` 和 ID `2`。
+1. Open the project in Unity `2022.3.62f3`.
+2. Open the only build scene: `Assets/Scenes/SampleScene.unity`.
+3. Run `Tools > AR 80s Retro > Configure Build Scene (3-Tag Cup)`. This command validates the geometry of the three mounts, connects the camera/YOLO/AprilTag components, disables LiDAR and AR plane visualization, and saves the scene.
+4. Confirm that Build Settings contains only `Assets/Scenes/SampleScene.unity`.
+5. Run `Tools > AR 80s Retro > Build iOS Player (3-Tag Cup)`. By default, the Xcode project is generated in `Builds/iOS-AprilTag`; you may also continue to use Unity's standard iOS build workflow.
+6. Use Xcode to install the app on an ARKit-compatible iPhone. Start in portrait orientation and test at a distance of approximately `15–30 cm`.
+7. Initially, keep the entire cup and ID `0` in view and hold still for about `1–2 s`. After the status changes to `TRACKING CUP`, slowly rotate the cup toward ID `1` and ID `2`.
 
-核心依赖：
+Core dependencies:
 
 - AR Foundation / ARKit `5.2.0`
 - Unity Sentis `2.1.3`
 - `jp.keijiro.apriltag` `1.0.3`
 - `Assets/AR80sRetro/Models/YOLO/yolov8n.onnx`
 
-## 屏幕状态
+## On-Screen Status
 
-- `WAITING: show cup + AprilTag 0/1/2`：尚未同时获得 cup 检测和任一有效 Tag。
-- `CUP FOUND - WAITING FOR APRILTAG 0/1/2`：YOLO 已看到杯子，但三个 Tag 都没有新鲜位姿。
-- `AUTO SIZING CUP: n/5 - HOLD STILL`：正在收集 5 个尺寸样本。
-- `TRACKING CUP (APRILTAG n)`：已经跟踪，`n` 是当前使用的 ID。
-- `APRILTAG HIDDEN - SHORT POSITION FALLBACK`：短时只校正位置并保持最后旋转。
-- `CUP LOST - SHOW CUP + APRILTAG 0/1/2`：超过丢失宽限时间，需要重新看到杯子和任一 Tag。
+- `WAITING: show cup + AprilTag 0/1/2`: The system has not yet received both a cup detection and a valid Tag.
+- `YOLO RUNNING ... cup-like=...`: A persistent diagnostic line on the phone showing the inference count, cup-like score, threshold, and current best COCO class.
+- `APRILTAG FOUND - YOLO NO CUP (SEE SCORE BELOW)`: Tag tracking is working, but the current cup-like score has not reached the threshold.
+- `CUP FOUND - WAITING FOR APRILTAG 0/1/2`: YOLO can see the cup, but none of the three Tags has a fresh pose.
+- `CUP + TAG FOUND - INITIALIZING REPLACEMENT`: The first valid joint observation is creating the replacement model.
+- `TRACKING CUP (APRILTAG n)`: Tracking is active; `n` is the ID currently in use.
+- `APRILTAG HIDDEN - SHORT POSITION FALLBACK`: The system briefly corrects position while retaining the last rotation.
+- `CUP LOST - SHOW CUP + APRILTAG 0/1/2`: The loss grace period has expired, so the cup and any one of the Tags must become visible again.
 
-## 建议实验
+## Suggested Experiments
 
-固定打印尺寸、光照和手机后，可分别测试：
+With the printed Tag size, lighting, and phone held constant, test the following separately:
 
-1. **Yaw 接力**：从 ID `0` 开始，绕杯轴转动 `0–360°`，记录 ID `0→1→2` 切换时的模型位置/角度跳变量与丢失帧数。
-2. **手部遮挡**：分别遮挡一个、两个 Tag，记录仍有一个 Tag 可见时的稳定性；再完全遮挡三个 Tag，测量 fallback 的持续时间。
-3. **距离与倾角**：在 `15/20/25/30 cm` 以及正视、`30°`、`45°`、`60°` 斜视下记录检测率和位姿抖动。
-4. **快速运动**：比较静态、慢速转动和快速转动时的丢失率，重点观察 1 cm Tag 的运动模糊。
+1. **Yaw handoff**: Starting from ID `0`, rotate the cup through `0–360°` about its axis. Record position/angle jumps and dropped frames when switching from ID `0→1→2`.
+2. **Hand occlusion**: Occlude one and then two Tags, recording stability while one Tag remains visible. Then fully occlude all three Tags and measure the fallback duration.
+3. **Distance and viewing angle**: Record detection rate and pose jitter at `15/20/25/30 cm` and at head-on, `30°`, `45°`, and `60°` oblique views.
+4. **Fast motion**: Compare loss rates while stationary, rotating slowly, and rotating quickly, with particular attention to motion blur on the 1 cm Tags.
 
-每次实验先让 ID `0` 与完整杯框共同可见并完成 5 帧定尺寸，避免把初始化失败与跟踪失败混在一起。
+Before each experiment, keep ID `0` and the full cup bounding box visible together. Wait until the screen shows `TRACKING CUP` before beginning the occlusion or rotation test.
 
-## 已知限制
+## Known Limitations
 
-- 三个侧面 Tag 主要覆盖杯子绕竖轴旋转。杯底没有 Tag，因此把杯底完全朝向相机时可能同时看不到三个侧面 Tag；这种情况下不能保证持续 6DoF。
-- 1 cm Tag 对焦距、反光、打印清晰度和运动模糊敏感。标签被手完全遮住时没有视觉算法可以从该 Tag 恢复位姿。
-- 当前 `yolov8n.onnx` 是检测模型，不是分割模型。它不能像素级擦除真实杯子；完全替换仍需分割和背景补全。
-- 当前 cup FBX 是连续网格。系统能匹配杯身中心、高度、直径和把手方向，但无法独立调整现实把手的孔径和伸出长度。
+- The three side Tags primarily cover rotation around the cup's vertical axis. Because there is no Tag on the bottom, all three side Tags may be invisible when the bottom faces the camera directly; continuous 6DoF tracking cannot be guaranteed in this orientation.
+- The 1 cm Tags are sensitive to focus distance, reflections, print quality, and motion blur. No vision algorithm can recover a pose from a Tag while it is completely covered by a hand.
+- The current `yolov8n.onnx` is a detection model, not a segmentation model. It cannot erase the real cup at the pixel level; complete replacement still requires segmentation and background inpainting.
+- The current cup FBX is a continuous mesh. The system can match the cup-body center, height, diameter, and handle direction, but it cannot independently adjust the real handle's opening or projection length.
 
-更详细的真机状态与排错见 [CUP_DEMO_SETUP_ZH.md](Assets/AR80sRetro/CUP_DEMO_SETUP_ZH.md)。
+For detailed on-device status information and troubleshooting, see [CUP_DEMO_SETUP_ZH.md](Assets/AR80sRetro/CUP_DEMO_SETUP_ZH.md).

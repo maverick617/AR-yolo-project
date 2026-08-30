@@ -20,10 +20,10 @@ MonoBehaviour:
     raycastAnchorInBoundingBox: {x: 0.5, y: 0.95}
     rotationOffsetEuler: {x: 0, y: 0, z: 0}
     scaleCalibrationMultiplier: 1
-    minConfidence: 0.45
-    trackingMinConfidence: 0.3
+    minConfidence: 0.2
+    trackingMinConfidence: 0.15
     confirmationFrames: 1
-    positionSmoothing: 0.18
+    positionSmoothing: 0.26
     estimateScaleFromBoundingBox: 1
     scaleBoundingBoxAxis: 0
     estimatedHeightMultiplier: 0.9

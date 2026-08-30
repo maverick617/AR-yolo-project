@@ -9,6 +9,8 @@ namespace AR80sRetro
     /// </summary>
     public sealed class CupDimensionEstimator : MonoBehaviour
     {
+        [Tooltip("The AprilTag experiment uses Tag range plus the YOLO box. Enable only for a separate RGB-LiDAR experiment.")]
+        [SerializeField] private bool useEnvironmentDepth;
         [SerializeField] private ARDepthFrameProvider depthProvider;
         [SerializeField] private Camera arCamera;
         [SerializeField, Min(0.01f)] private float minimumCupDimensionMeters = 0.03f;
@@ -34,7 +36,8 @@ namespace AR80sRetro
         {
             ResolveDependencies();
             CupMeasurement depthMeasurement = default;
-            bool hasDepth = depthProvider != null
+            bool hasDepth = useEnvironmentDepth
+                && depthProvider != null
                 && depthProvider.TryMeasureObjectBounds(
                     detection,
                     new Pose(tagWorldPose.position, expectedCupRotation),

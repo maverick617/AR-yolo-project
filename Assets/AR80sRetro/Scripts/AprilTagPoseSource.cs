@@ -39,6 +39,9 @@ namespace AR80sRetro
             public int TagId = -1;
             public string ImageName;
             public Pose TagPose;
+            public bool HasPose;
+            public Pose LastRawPose;
+            public bool HasRawPose;
             public float LastSeenTime;
             public TrackableId TrackableId;
             public bool HasTrackableId;
@@ -52,9 +55,41 @@ namespace AR80sRetro
         [SerializeField, Range(0.01f, 1f)] private float maxViewportCenterDistance = 0.55f;
         [Tooltip("If exactly one fresh tag can belong to the detected cup, allow it to bind even when RGB/display transforms make its projected point miss the YOLO box.")]
         [SerializeField] private bool allowSingleVisibleTagFallback = true;
+
+        [Header("Pose stabilization")]
+        [Tooltip("Filters each physical Tag independently before multi-Tag handover. This removes the high-frequency pose noise produced by a 1 cm marker.")]
+        [SerializeField] private bool filterPublishedTagPoses = true;
+        [SerializeField, Range(1f, 30f)] private float positionFilterSpeed = 7f;
+        [SerializeField, Range(1f, 30f)] private float rotationFilterSpeed = 6f;
+        [SerializeField, Min(0f)] private float positionDeadbandMeters = 0.0015f;
+        [SerializeField, Range(0f, 10f)] private float rotationDeadbandDegrees = 0.8f;
+        [Tooltip("A one-frame jump larger than this is treated as a bad planar-pose solution.")]
+        [SerializeField, Min(0.02f)] private float maximumSingleFramePositionJumpMeters = 0.12f;
+        [SerializeField, Range(10f, 180f)] private float maximumSingleFrameRotationJumpDegrees = 55f;
+        [SerializeField, Min(0.1f)] private float filterResetGapSeconds = 0.45f;
         [SerializeField] private bool logPoseUpdates;
 
+        [Header("Runtime evaluation")]
+        [Tooltip("Logs frame-to-frame raw and filtered pose motion. Interpret these values as jitter only while the physical cup and camera are stationary.")]
+        [SerializeField] private bool logRuntimeEvaluation = true;
+        [SerializeField, Min(5f)] private float evaluationWindowSeconds = 20f;
+
         private readonly List<Observation> observations = new List<Observation>();
+        private readonly Dictionary<int, Pose> evaluationLastRawPoses =
+            new Dictionary<int, Pose>();
+        private readonly Dictionary<int, Pose> evaluationLastFilteredPoses =
+            new Dictionary<int, Pose>();
+        private readonly List<float> evaluationRawPositionStepsMm =
+            new List<float>(512);
+        private readonly List<float> evaluationFilteredPositionStepsMm =
+            new List<float>(512);
+        private readonly List<float> evaluationRawRotationStepsDegrees =
+            new List<float>(512);
+        private readonly List<float> evaluationFilteredRotationStepsDegrees =
+            new List<float>(512);
+        private double evaluationWindowStartSeconds;
+        private int evaluationAcceptedPoseCount;
+        private int evaluationRejectedPoseCount;
 
         public int FreshObservationCount
         {
@@ -95,6 +130,7 @@ namespace AR80sRetro
 
         private void OnEnable()
         {
+            ResetEvaluationWindow();
             if (trackedImageManager != null)
             {
                 trackedImageManager.trackedImagesChanged += HandleTrackedImagesChanged;
@@ -103,6 +139,7 @@ namespace AR80sRetro
 
         private void OnDisable()
         {
+            LogEvaluationWindow(true);
             if (trackedImageManager != null)
             {
                 trackedImageManager.trackedImagesChanged -= HandleTrackedImagesChanged;
@@ -117,16 +154,97 @@ namespace AR80sRetro
         public void PublishTagPose(int tagId, string imageName, Pose tagPose)
         {
             Observation observation = FindOrCreateObservation(tagId, imageName);
+            float now = Time.time;
+            if (!TryUpdateFilteredPose(observation, tagPose, now))
+            {
+                RecordRejectedEvaluationPose();
+                return;
+            }
+
             observation.TagId = tagId;
             observation.ImageName = imageName;
-            observation.TagPose = tagPose;
-            observation.LastSeenTime = Time.time;
+            observation.LastSeenTime = now;
             observation.HasTrackableId = false;
+            RecordAcceptedEvaluationPose(tagId, tagPose, observation.TagPose);
 
             if (logPoseUpdates)
             {
-                Debug.Log($"AprilTag pose: id={tagId}, image={imageName}, position={tagPose.position}", this);
+                Debug.Log($"AprilTag pose: id={tagId}, image={imageName}, position={observation.TagPose.position}", this);
             }
+        }
+
+        private bool TryUpdateFilteredPose(
+            Observation observation,
+            Pose rawPose,
+            float now)
+        {
+            float gapSeconds = now - observation.LastSeenTime;
+            if (!filterPublishedTagPoses
+                || !observation.HasPose
+                || gapSeconds > Mathf.Max(0.1f, filterResetGapSeconds))
+            {
+                observation.TagPose = rawPose;
+                observation.HasPose = true;
+                observation.LastRawPose = rawPose;
+                observation.HasRawPose = true;
+                return true;
+            }
+
+            float positionJump = Vector3.Distance(
+                observation.HasRawPose
+                    ? observation.LastRawPose.position
+                    : observation.TagPose.position,
+                rawPose.position);
+            float rotationJump = Quaternion.Angle(
+                observation.HasRawPose
+                    ? observation.LastRawPose.rotation
+                    : observation.TagPose.rotation,
+                rawPose.rotation);
+            if (positionJump > Mathf.Max(0.02f, maximumSingleFramePositionJumpMeters)
+                || rotationJump > Mathf.Clamp(
+                    maximumSingleFrameRotationJumpDegrees,
+                    10f,
+                    180f))
+            {
+                // Do not refresh LastSeenTime for an outlier. A persistent new
+                // pose will be accepted as a fresh acquisition after resetGap.
+                return false;
+            }
+
+            observation.LastRawPose = rawPose;
+            observation.HasRawPose = true;
+
+            float deltaTime = Mathf.Clamp(gapSeconds, 0.001f, 0.25f);
+            float filteredPositionError = Vector3.Distance(
+                observation.TagPose.position,
+                rawPose.position);
+            Vector3 filteredPosition = observation.TagPose.position;
+            if (filteredPositionError > Mathf.Max(0f, positionDeadbandMeters))
+            {
+                float positionBlend = 1f - Mathf.Exp(
+                    -Mathf.Max(1f, positionFilterSpeed) * deltaTime);
+                filteredPosition = Vector3.Lerp(
+                    filteredPosition,
+                    rawPose.position,
+                    positionBlend);
+            }
+
+            Quaternion filteredRotation = observation.TagPose.rotation;
+            float filteredRotationError = Quaternion.Angle(
+                filteredRotation,
+                rawPose.rotation);
+            if (filteredRotationError > Mathf.Max(0f, rotationDeadbandDegrees))
+            {
+                float rotationBlend = 1f - Mathf.Exp(
+                    -Mathf.Max(1f, rotationFilterSpeed) * deltaTime);
+                filteredRotation = Quaternion.Slerp(
+                    filteredRotation,
+                    rawPose.rotation,
+                    rotationBlend);
+            }
+
+            observation.TagPose = new Pose(filteredPosition, filteredRotation);
+            return true;
         }
 
         /// <summary>
@@ -465,12 +583,149 @@ namespace AR80sRetro
             Observation observation = FindOrCreateObservation(tagId, imageName);
             observation.TagId = tagId;
             observation.ImageName = imageName;
-            observation.TagPose = new Pose(
+            Pose rawPose = new Pose(
                 trackedImage.transform.position,
                 trackedImage.transform.rotation);
-            observation.LastSeenTime = Time.time;
+            float now = Time.time;
+            if (!TryUpdateFilteredPose(observation, rawPose, now))
+            {
+                RecordRejectedEvaluationPose();
+                return;
+            }
+
+            observation.LastSeenTime = now;
             observation.TrackableId = trackedImage.trackableId;
             observation.HasTrackableId = true;
+            RecordAcceptedEvaluationPose(tagId, rawPose, observation.TagPose);
+        }
+
+        private void RecordRejectedEvaluationPose()
+        {
+            if (!logRuntimeEvaluation)
+            {
+                return;
+            }
+
+            evaluationRejectedPoseCount++;
+            LogEvaluationWindow(false);
+        }
+
+        private void RecordAcceptedEvaluationPose(
+            int tagId,
+            Pose rawPose,
+            Pose filteredPose)
+        {
+            if (!logRuntimeEvaluation)
+            {
+                return;
+            }
+
+            evaluationAcceptedPoseCount++;
+            if (evaluationLastRawPoses.TryGetValue(tagId, out Pose previousRaw))
+            {
+                evaluationRawPositionStepsMm.Add(
+                    Vector3.Distance(previousRaw.position, rawPose.position) * 1000f);
+                evaluationRawRotationStepsDegrees.Add(
+                    Quaternion.Angle(previousRaw.rotation, rawPose.rotation));
+            }
+
+            if (evaluationLastFilteredPoses.TryGetValue(
+                tagId,
+                out Pose previousFiltered))
+            {
+                evaluationFilteredPositionStepsMm.Add(
+                    Vector3.Distance(
+                        previousFiltered.position,
+                        filteredPose.position) * 1000f);
+                evaluationFilteredRotationStepsDegrees.Add(
+                    Quaternion.Angle(
+                        previousFiltered.rotation,
+                        filteredPose.rotation));
+            }
+
+            evaluationLastRawPoses[tagId] = rawPose;
+            evaluationLastFilteredPoses[tagId] = filteredPose;
+            LogEvaluationWindow(false);
+        }
+
+        private void ResetEvaluationWindow()
+        {
+            evaluationWindowStartSeconds = Time.realtimeSinceStartupAsDouble;
+            evaluationAcceptedPoseCount = 0;
+            evaluationRejectedPoseCount = 0;
+            evaluationLastRawPoses.Clear();
+            evaluationLastFilteredPoses.Clear();
+            evaluationRawPositionStepsMm.Clear();
+            evaluationFilteredPositionStepsMm.Clear();
+            evaluationRawRotationStepsDegrees.Clear();
+            evaluationFilteredRotationStepsDegrees.Clear();
+        }
+
+        private void LogEvaluationWindow(bool force)
+        {
+            if (!logRuntimeEvaluation
+                || evaluationAcceptedPoseCount + evaluationRejectedPoseCount == 0)
+            {
+                return;
+            }
+
+            double durationSeconds = Time.realtimeSinceStartupAsDouble
+                - evaluationWindowStartSeconds;
+            if (!force
+                && durationSeconds < Mathf.Max(5f, evaluationWindowSeconds))
+            {
+                return;
+            }
+
+            float acceptedRateHz = (float)(evaluationAcceptedPoseCount
+                / Math.Max(0.001, durationSeconds));
+            Debug.Log(
+                $"APRILTAG_POSE_EVAL duration={durationSeconds:F2}s, "
+                + $"accepted={evaluationAcceptedPoseCount}, "
+                + $"rejected={evaluationRejectedPoseCount}, "
+                + $"acceptedRate={acceptedRateHz:F2}Hz, "
+                + $"rawPositionStepMean={Mean(evaluationRawPositionStepsMm):F2}mm, "
+                + $"rawPositionStepP95={Percentile(evaluationRawPositionStepsMm, 0.95f):F2}mm, "
+                + $"filteredPositionStepMean={Mean(evaluationFilteredPositionStepsMm):F2}mm, "
+                + $"filteredPositionStepP95={Percentile(evaluationFilteredPositionStepsMm, 0.95f):F2}mm, "
+                + $"rawRotationStepMean={Mean(evaluationRawRotationStepsDegrees):F2}deg, "
+                + $"rawRotationStepP95={Percentile(evaluationRawRotationStepsDegrees, 0.95f):F2}deg, "
+                + $"filteredRotationStepMean={Mean(evaluationFilteredRotationStepsDegrees):F2}deg, "
+                + $"filteredRotationStepP95={Percentile(evaluationFilteredRotationStepsDegrees, 0.95f):F2}deg",
+                this);
+            ResetEvaluationWindow();
+        }
+
+        private static float Mean(List<float> values)
+        {
+            if (values == null || values.Count == 0)
+            {
+                return 0f;
+            }
+
+            float sum = 0f;
+            for (int i = 0; i < values.Count; i++)
+            {
+                sum += values[i];
+            }
+
+            return sum / values.Count;
+        }
+
+        private static float Percentile(List<float> values, float percentile)
+        {
+            if (values == null || values.Count == 0)
+            {
+                return 0f;
+            }
+
+            List<float> sorted = new List<float>(values);
+            sorted.Sort();
+            int index = Mathf.Clamp(
+                Mathf.CeilToInt(percentile * sorted.Count) - 1,
+                0,
+                sorted.Count - 1);
+            return sorted[index];
         }
 
         private void RemoveTrackedImage(ARTrackedImage trackedImage)

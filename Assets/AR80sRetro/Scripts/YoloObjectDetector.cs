@@ -10,14 +10,16 @@ namespace AR80sRetro
     {
         private readonly struct TargetClass
         {
-            public TargetClass(int index, string label)
+            public TargetClass(int index, string modelLabel, string canonicalLabel)
             {
                 Index = index;
-                Label = label;
+                ModelLabel = modelLabel;
+                CanonicalLabel = canonicalLabel;
             }
 
             public int Index { get; }
-            public string Label { get; }
+            public string ModelLabel { get; }
+            public string CanonicalLabel { get; }
         }
 
         private readonly struct Candidate
@@ -50,7 +52,11 @@ namespace AR80sRetro
 
         private static readonly TargetClass[] TargetClasses =
         {
-            new TargetClass(CupClassIndex, CupLabel)
+            // Transparent cups are often classified by the stock COCO model as
+            // wine glass or bowl. They all feed the single cup replacement rule.
+            new TargetClass(40, "wine glass", CupLabel),
+            new TargetClass(CupClassIndex, CupLabel, CupLabel),
+            new TargetClass(45, "bowl", CupLabel)
         };
 
         [Header("Dependencies")]
@@ -62,15 +68,31 @@ namespace AR80sRetro
         [Header("Inference")]
         [SerializeField] private BackendType backendType = BackendType.GPUCompute;
         [SerializeField, Min(0.1f)] private float inferenceIntervalSeconds = 0.25f;
-        [SerializeField, Range(0.05f, 1f)] private float confidenceThreshold = 0.45f;
+        [SerializeField, Range(0.05f, 1f)] private float confidenceThreshold = 0.2f;
         [SerializeField, Range(0.05f, 1f)] private float iouThreshold = 0.45f;
         [SerializeField, Min(1)] private int maxDetections = 12;
-        [SerializeField] private bool logDetections = true;
+        [SerializeField] private bool logDetections;
         [SerializeField, Min(1)] private int diagnosticLogInterval = 10;
         [SerializeField, Range(24, 160)] private int segmentationMaskResolution = 64;
         [SerializeField, Range(0.05f, 0.95f)] private float segmentationMaskThreshold = 0.5f;
 
+        [Header("Runtime evaluation")]
+        [Tooltip("Logs measured processing time and achieved detector rate in fixed windows. This telemetry does not affect inference.")]
+        [SerializeField] private bool logRuntimeEvaluation = true;
+        [SerializeField, Min(5f)] private float evaluationWindowSeconds = 20f;
+
         public event Action<IReadOnlyList<DetectionResult>> DetectionsReady;
+
+        public bool IsInitialized => worker != null;
+        public bool InitializationFailed => initializationFailed;
+        public int InferenceCount => inferenceCount;
+        public int LastBestClassIndex { get; private set; } = -1;
+        public string LastBestClassLabel { get; private set; } = "none";
+        public float LastBestScore { get; private set; }
+        public float LastCupLikeScore { get; private set; }
+        public int LastDetectionCount { get; private set; }
+        public float ConfidenceThreshold => confidenceThreshold;
+        public double LastInferenceTimestampSeconds { get; private set; }
 
         private readonly List<Candidate> candidates = new List<Candidate>(64);
         private readonly List<Candidate> selectedCandidates = new List<Candidate>(16);
@@ -84,6 +106,10 @@ namespace AR80sRetro
         private bool initializationFailed;
         private int inferenceCount;
         private int runtimeOutputCount;
+        private readonly List<float> evaluationLatenciesMs = new List<float>(128);
+        private double evaluationWindowStartSeconds;
+        private int evaluationInferenceCount;
+        private int evaluationDetectionFrameCount;
 
         private void Reset()
         {
@@ -92,6 +118,7 @@ namespace AR80sRetro
 
         private void OnEnable()
         {
+            ResetEvaluationWindow();
             TryInitialize();
         }
 
@@ -104,12 +131,18 @@ namespace AR80sRetro
 
             nextInferenceTime = Time.time + inferenceIntervalSeconds;
 
+            double processingStartSeconds = Time.realtimeSinceStartupAsDouble;
             if (!TryInitialize() || !frameProvider.TryUpdateFrame())
             {
                 return;
             }
 
+            int previousInferenceCount = inferenceCount;
             RunInference(frameProvider.CameraTexture);
+            if (inferenceCount > previousInferenceCount)
+            {
+                RecordEvaluationSample(processingStartSeconds);
+            }
         }
 
         private bool TryInitialize()
@@ -154,7 +187,7 @@ namespace AR80sRetro
                 if (segmentationModelAsset == null)
                 {
                     Debug.LogWarning(
-                        "Cup segmentation ONNX is not assigned. Dynamic sizing is using the detector-box/depth fallback, not a pixel mask.",
+                        "Cup segmentation ONNX is not assigned. Dynamic sizing is using the detector box plus AprilTag range, not a pixel mask.",
                         this);
                 }
                 else if (runtimeOutputCount < 2)
@@ -214,6 +247,7 @@ namespace AR80sRetro
                 }
 
                 inferenceCount++;
+                LastInferenceTimestampSeconds = Time.realtimeSinceStartupAsDouble;
                 DetectionsReady?.Invoke(detectionResults);
             }
             catch (Exception exception)
@@ -317,7 +351,7 @@ namespace AR80sRetro
                     if (confidence > targetConfidence)
                     {
                         targetConfidence = confidence;
-                        targetLabel = targetClass.Label;
+                        targetLabel = targetClass.CanonicalLabel;
                     }
                 }
 
@@ -372,7 +406,7 @@ namespace AR80sRetro
             if (diagnosticLogInterval > 0 && inferenceCount % diagnosticLogInterval == 0)
             {
                 Debug.Log(
-                    $"YOLO diagnostics: bestClass={highestClassIndex}, bestScore={highestAnyConfidence:F3}, " +
+                    $"YOLO diagnostics: bestClass={highestClassIndex} ({GetCocoClassLabel(highestClassIndex)}), bestScore={highestAnyConfidence:F3}, " +
                     $"{FormatTargetScores(highestTargetConfidences)}, " +
                     $"frame={frameProvider.CameraTexture.width}x{frameProvider.CameraTexture.height}",
                     this);
@@ -392,6 +426,18 @@ namespace AR80sRetro
                     candidate.ScreenBox,
                     mask));
             }
+
+            LastBestClassIndex = highestClassIndex;
+            LastBestClassLabel = GetCocoClassLabel(highestClassIndex);
+            LastBestScore = highestAnyConfidence;
+            LastCupLikeScore = 0f;
+            for (int i = 0; i < highestTargetConfidences.Length; i++)
+            {
+                LastCupLikeScore = Mathf.Max(
+                    LastCupLikeScore,
+                    highestTargetConfidences[i]);
+            }
+            LastDetectionCount = detectionResults.Count;
 
             if (logDetections && detectionResults.Count > 0)
             {
@@ -540,12 +586,26 @@ namespace AR80sRetro
                     builder.Append(", ");
                 }
 
-                builder.Append(TargetClasses[i].Label);
+                builder.Append(TargetClasses[i].ModelLabel);
                 builder.Append("Score=");
                 builder.Append(scores[i].ToString("F3"));
             }
 
             return builder.ToString();
+        }
+
+        private static string GetCocoClassLabel(int classIndex)
+        {
+            switch (classIndex)
+            {
+                case 39: return "bottle";
+                case 40: return "wine glass";
+                case 41: return "cup";
+                case 45: return "bowl";
+                case 60: return "dining table";
+                case 75: return "vase";
+                default: return classIndex >= 0 ? $"class {classIndex}" : "none";
+            }
         }
 
         private static float CalculateIntersectionOverUnion(Rect first, Rect second)
@@ -561,8 +621,88 @@ namespace AR80sRetro
             return unionArea > 0f ? intersectionArea / unionArea : 0f;
         }
 
+        private void RecordEvaluationSample(double processingStartSeconds)
+        {
+            if (!logRuntimeEvaluation)
+            {
+                return;
+            }
+
+            evaluationInferenceCount++;
+            if (LastDetectionCount > 0)
+            {
+                evaluationDetectionFrameCount++;
+            }
+
+            evaluationLatenciesMs.Add((float)(
+                (Time.realtimeSinceStartupAsDouble - processingStartSeconds) * 1000.0));
+            LogEvaluationWindow(false);
+        }
+
+        private void ResetEvaluationWindow()
+        {
+            evaluationWindowStartSeconds = Time.realtimeSinceStartupAsDouble;
+            evaluationInferenceCount = 0;
+            evaluationDetectionFrameCount = 0;
+            evaluationLatenciesMs.Clear();
+        }
+
+        private void LogEvaluationWindow(bool force)
+        {
+            if (!logRuntimeEvaluation || evaluationInferenceCount == 0)
+            {
+                return;
+            }
+
+            double durationSeconds = Time.realtimeSinceStartupAsDouble
+                - evaluationWindowStartSeconds;
+            if (!force
+                && durationSeconds < Mathf.Max(5f, evaluationWindowSeconds))
+            {
+                return;
+            }
+
+            evaluationLatenciesMs.Sort();
+            float latencyMeanMs = 0f;
+            for (int i = 0; i < evaluationLatenciesMs.Count; i++)
+            {
+                latencyMeanMs += evaluationLatenciesMs[i];
+            }
+
+            latencyMeanMs /= Mathf.Max(1, evaluationLatenciesMs.Count);
+            float achievedRateHz = (float)(evaluationInferenceCount
+                / Math.Max(0.001, durationSeconds));
+            float detectionFrameRate = 100f * evaluationDetectionFrameCount
+                / Mathf.Max(1, evaluationInferenceCount);
+            Debug.Log(
+                $"YOLO_EVAL duration={durationSeconds:F2}s, "
+                + $"inferences={evaluationInferenceCount}, rate={achievedRateHz:F2}Hz, "
+                + $"processingMean={latencyMeanMs:F1}ms, "
+                + $"processingMedian={Percentile(evaluationLatenciesMs, 0.5f):F1}ms, "
+                + $"processingP95={Percentile(evaluationLatenciesMs, 0.95f):F1}ms, "
+                + $"cupDetectionFrames={evaluationDetectionFrameCount}, "
+                + $"cupDetectionRate={detectionFrameRate:F1}%",
+                this);
+            ResetEvaluationWindow();
+        }
+
+        private static float Percentile(List<float> sortedValues, float percentile)
+        {
+            if (sortedValues == null || sortedValues.Count == 0)
+            {
+                return 0f;
+            }
+
+            int index = Mathf.Clamp(
+                Mathf.CeilToInt(percentile * sortedValues.Count) - 1,
+                0,
+                sortedValues.Count - 1);
+            return sortedValues[index];
+        }
+
         private void OnDisable()
         {
+            LogEvaluationWindow(true);
             DisposeResources();
         }
 

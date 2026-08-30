@@ -77,9 +77,12 @@ namespace AR80sRetro
         [Tooltip("A cup is never spawned from a plane pose because a plane anchor cannot follow a lifted cup.")]
         [SerializeField] private bool requireAprilTagPoseForTaggedRules = true;
         [SerializeField] private bool cupDemoOnly = true;
-        [SerializeField, Min(0.01f)] private float rotationFollowSpeed = 14f;
+        [SerializeField, Min(0.01f)] private float rotationFollowSpeed = 6f;
         [Tooltip("How long the active tag may stop updating before a fresher configured tag takes over.")]
-        [SerializeField, Range(0.05f, 0.25f)] private float tagHandoverFreshnessSeconds = 0.12f;
+        [SerializeField, Range(0.05f, 0.75f)] private float tagHandoverFreshnessSeconds = 0.32f;
+        [Tooltip("Do not chase sub-millimetre render corrections caused by Tag pose noise.")]
+        [SerializeField, Min(0f)] private float renderPositionDeadbandMeters = 0.0025f;
+        [SerializeField, Range(0f, 10f)] private float renderRotationDeadbandDegrees = 1.25f;
         [SerializeField, Range(0.05f, 0.75f)] private float visualFallbackMaxViewportDistance = 0.24f;
         [SerializeField, Min(0f)] private float lostStateDelaySeconds = 1.2f;
         [SerializeField] private bool destroyWhenLost;
@@ -96,6 +99,11 @@ namespace AR80sRetro
         [SerializeField, Min(0.25f)] private float diagnosticLogIntervalSeconds = 1f;
         [SerializeField] private bool showCupDemoStatus = true;
 
+        [Header("Runtime evaluation")]
+        [Tooltip("Logs achieved render rate, replacement availability and tag handovers in fixed windows.")]
+        [SerializeField] private bool logRuntimeEvaluation = true;
+        [SerializeField, Min(5f)] private float evaluationWindowSeconds = 20f;
+
         private readonly List<TrackedReplacement> trackedReplacements =
             new List<TrackedReplacement>();
         private readonly Dictionary<string, float> nextDiagnosticLogTimes =
@@ -104,6 +112,12 @@ namespace AR80sRetro
             new Dictionary<string, int>();
         private TagAssociation[] tagAssociations = Array.Empty<TagAssociation>();
         private string currentStatusMessage = "WAITING: show cup + AprilTag 0/1/2";
+        private double evaluationWindowStartSeconds;
+        private int evaluationRenderedFrameCount;
+        private int evaluationTargetAvailableFrameCount;
+        private int evaluationVisualVisibleFrameCount;
+        private int evaluationTagHandoverCount;
+        private int evaluationLostTransitionCount;
 
         public string CurrentStatusMessage => currentStatusMessage;
 
@@ -127,6 +141,7 @@ namespace AR80sRetro
             EnsureCupRegistrationComponents();
             ValidateConfiguration();
             SetStatus("WAITING: show cup + AprilTag 0/1/2");
+            ResetEvaluationWindow();
         }
 
         private void Reset()
@@ -144,6 +159,12 @@ namespace AR80sRetro
             UpdateTargetsFromStoredTags();
             SmoothTrackedObjects();
             UpdateLostStates();
+            RecordEvaluationFrame();
+        }
+
+        private void OnDisable()
+        {
+            LogEvaluationWindow(true);
         }
 
         public void ApplyDetections(IReadOnlyList<DetectionResult> detections)
@@ -156,7 +177,10 @@ namespace AR80sRetro
             PrepareTagAssociations(detections);
             if (detections.Count == 0 && !HasVisibleReplacement())
             {
-                SetStatus("WAITING: show cup + AprilTag 0/1/2");
+                SetStatus(aprilTagPoseSource != null
+                        && aprilTagPoseSource.FreshObservationCount > 0
+                    ? "APRILTAG FOUND - YOLO NO CUP (SEE SCORE BELOW)"
+                    : "WAITING: show cup + AprilTag 0/1/2");
             }
 
             float now = Time.time;
@@ -316,7 +340,7 @@ namespace AR80sRetro
                         SetStatus("SHOW A SIDE APRILTAG TO SIZE CUP");
                         LogDiagnostic(
                             "size:cup-axial-view",
-                            "An axial AprilTag view cannot initialize YOLO cup height. Show a configured side Tag for five frames.");
+                            "An axial AprilTag view cannot initialize YOLO cup height. Show a configured side Tag together with the cup.");
                         continue;
                     }
 
@@ -335,8 +359,7 @@ namespace AR80sRetro
                     }
 
                     SetStatus(
-                        $"AUTO SIZING CUP: {tracked.InitialSizeSamples.Count}/"
-                        + $"{rule.CupRegistrationSamples} - HOLD STILL");
+                        "CUP + TAG FOUND - INITIALIZING REPLACEMENT");
                     continue;
                 }
 
@@ -544,7 +567,7 @@ namespace AR80sRetro
                 : ReplacementState.Registering;
             SetStatus(IsTrackingReady(tracked)
                 ? GetTrackingStatus(tracked)
-                : $"AUTO SIZING CUP: {tracked.Profile?.SampleCount ?? 0}/{rule.CupRegistrationSamples}");
+                : "CUP + TAG FOUND - INITIALIZING REPLACEMENT");
 
             Debug.Log(
                 $"Retro replacement created: label={rule.DetectionLabel}, "
@@ -845,8 +868,7 @@ namespace AR80sRetro
             for (int i = 0; i < trackedReplacements.Count; i++)
             {
                 TrackedReplacement tracked = trackedReplacements[i];
-                if (tracked.Instance == null
-                    || tracked.Rule == null
+                if (tracked.Rule == null
                     || tracked.AprilTagId < 0
                         && string.IsNullOrWhiteSpace(tracked.AprilTagImageName))
                 {
@@ -894,6 +916,8 @@ namespace AR80sRetro
                     tracked.HasTargetPose = false;
                     tracked.State = ReplacementState.Registering;
                     SetTrackedVisualActive(tracked, false);
+                    SetStatus(
+                        $"APRILTAG {tracked.AprilTagId} FOUND - WAITING FOR YOLO CUP");
                     continue;
                 }
 
@@ -930,15 +954,32 @@ namespace AR80sRetro
                 float smoothTime = tracked.Rule != null
                     ? Mathf.Max(0.01f, tracked.Rule.PositionSmoothing)
                     : 0.08f;
-                instanceTransform.position = Vector3.SmoothDamp(
+                float positionError = Vector3.Distance(
                     instanceTransform.position,
-                    tracked.TargetPose.position,
-                    ref tracked.MoveVelocity,
-                    smoothTime);
-                instanceTransform.rotation = Quaternion.Slerp(
+                    tracked.TargetPose.position);
+                if (positionError > Mathf.Max(0f, renderPositionDeadbandMeters))
+                {
+                    instanceTransform.position = Vector3.SmoothDamp(
+                        instanceTransform.position,
+                        tracked.TargetPose.position,
+                        ref tracked.MoveVelocity,
+                        smoothTime);
+                }
+                else
+                {
+                    tracked.MoveVelocity = Vector3.zero;
+                }
+
+                float rotationError = Quaternion.Angle(
                     instanceTransform.rotation,
-                    tracked.TargetPose.rotation,
-                    rotationBlend);
+                    tracked.TargetPose.rotation);
+                if (rotationError > Mathf.Max(0f, renderRotationDeadbandDegrees))
+                {
+                    instanceTransform.rotation = Quaternion.Slerp(
+                        instanceTransform.rotation,
+                        tracked.TargetPose.rotation,
+                        rotationBlend);
+                }
             }
         }
 
@@ -955,6 +996,11 @@ namespace AR80sRetro
                 if (age <= lostStateDelaySeconds)
                 {
                     continue;
+                }
+
+                if (tracked.State != ReplacementState.Lost)
+                {
+                    evaluationLostTransitionCount++;
                 }
 
                 tracked.State = ReplacementState.Lost;
@@ -1246,6 +1292,7 @@ namespace AR80sRetro
             }
 
             tracked.Rule = rule;
+            evaluationTagHandoverCount++;
             tracked.AprilTagId = tagId;
             tracked.AprilTagImageName = imageName;
             tracked.RegistrationSession = null;
@@ -1303,10 +1350,9 @@ namespace AR80sRetro
                 return;
             }
 
-            // The first five same-view measurements define this physical cup for
-            // the lifetime of the track. Locking the result prevents detection-box
-            // changes around the handle from making the model breathe while the
-            // cup rotates. Clear/reacquire to size a different cup.
+            // A single valid Tag-gated YOLO observation initializes the physical
+            // cup. Locking the result prevents later box jitter around a handle
+            // from making the model breathe while the cup rotates.
             if (tracked.HasMeasuredSize)
             {
                 return;
@@ -1319,10 +1365,7 @@ namespace AR80sRetro
             }
 
             Rect box = detection.NormalizedBox;
-            if (box.xMin <= 0.005f
-                || box.yMin <= 0.005f
-                || box.xMax >= 0.995f
-                || box.yMax >= 0.995f)
+            if (box.width < 0.03f || box.height < 0.03f)
             {
                 return;
             }
@@ -1344,8 +1387,7 @@ namespace AR80sRetro
                 tracked.InitialSizeSamples);
             tracked.MeasuredYoloBoxSize = MedianSize(
                 tracked.InitialYoloBoxSamples);
-            tracked.HasMeasuredSize = tracked.InitialSizeSamples.Count
-                >= tracked.Rule.CupRegistrationSamples;
+            tracked.HasMeasuredSize = tracked.InitialSizeSamples.Count >= 1;
         }
 
         private static Vector2 MedianSize(List<Vector2> samples)
@@ -1541,6 +1583,82 @@ namespace AR80sRetro
             {
                 currentStatusMessage = message;
             }
+        }
+
+        private void RecordEvaluationFrame()
+        {
+            if (!logRuntimeEvaluation)
+            {
+                return;
+            }
+
+            evaluationRenderedFrameCount++;
+            bool hasTarget = false;
+            bool hasVisibleVisual = false;
+            for (int i = 0; i < trackedReplacements.Count; i++)
+            {
+                TrackedReplacement tracked = trackedReplacements[i];
+                hasTarget |= tracked.HasTargetPose;
+                hasVisibleVisual |= tracked.Visual != null
+                    && tracked.Visual.activeInHierarchy;
+            }
+
+            if (hasTarget)
+            {
+                evaluationTargetAvailableFrameCount++;
+            }
+
+            if (hasVisibleVisual)
+            {
+                evaluationVisualVisibleFrameCount++;
+            }
+
+            LogEvaluationWindow(false);
+        }
+
+        private void ResetEvaluationWindow()
+        {
+            evaluationWindowStartSeconds = Time.realtimeSinceStartupAsDouble;
+            evaluationRenderedFrameCount = 0;
+            evaluationTargetAvailableFrameCount = 0;
+            evaluationVisualVisibleFrameCount = 0;
+            evaluationTagHandoverCount = 0;
+            evaluationLostTransitionCount = 0;
+        }
+
+        private void LogEvaluationWindow(bool force)
+        {
+            if (!logRuntimeEvaluation || evaluationRenderedFrameCount == 0)
+            {
+                return;
+            }
+
+            double durationSeconds = Time.realtimeSinceStartupAsDouble
+                - evaluationWindowStartSeconds;
+            if (!force
+                && durationSeconds < Mathf.Max(5f, evaluationWindowSeconds))
+            {
+                return;
+            }
+
+            float renderRate = (float)(evaluationRenderedFrameCount
+                / Math.Max(0.001, durationSeconds));
+            float targetAvailability = 100f * evaluationTargetAvailableFrameCount
+                / Mathf.Max(1, evaluationRenderedFrameCount);
+            float visualAvailability = 100f * evaluationVisualVisibleFrameCount
+                / Mathf.Max(1, evaluationRenderedFrameCount);
+            Debug.Log(
+                $"REPLACEMENT_EVAL duration={durationSeconds:F2}s, "
+                + $"renderedFrames={evaluationRenderedFrameCount}, "
+                + $"renderRate={renderRate:F2}FPS, "
+                + $"targetAvailableFrames={evaluationTargetAvailableFrameCount}, "
+                + $"targetAvailability={targetAvailability:F1}%, "
+                + $"visualVisibleFrames={evaluationVisualVisibleFrameCount}, "
+                + $"visualAvailability={visualAvailability:F1}%, "
+                + $"tagHandovers={evaluationTagHandoverCount}, "
+                + $"lostTransitions={evaluationLostTransitionCount}",
+                this);
+            ResetEvaluationWindow();
         }
 
         private void OnGUI()

@@ -1,77 +1,81 @@
-# 三侧面 AprilTag 杯子 Demo：真机测试与排错
+# Three-Sided AprilTag Cup Demo: On-Device Testing and Troubleshooting
 
-## 测试前检查
+## Pre-Test Checklist
 
-- Unity 版本为 `2022.3.62f3`，场景为 `Assets/Scenes/SampleScene.unity`。
-- 已执行 `Tools > AR 80s Retro > Configure Build Scene (3-Tag Cup)` 并重新构建真机 App。
-- 只使用 `tagStandard41h12` 的 ID `0`、`1`、`2`；黑色有效方形边长为 `1 cm`，`tagSizeMeters = 0.01`。
-- 俯视且把手朝 3 点：ID `0` 在 9 点、ID `1` 在 1 点、ID `2` 在 5 点。
-- 三个 Tag 的上边均朝杯口、正面均朝外、中心均处于杯身高度中点附近。ID `1` 与 ID `2` 不可交换。
-- 不贴杯底 Tag，也不使用 ID `3`。
-- 建议先在竖屏、`15–30 cm`、照明均匀且无反光的条件下测试。
+- Use Unity `2022.3.62f3` and the scene `Assets/Scenes/SampleScene.unity`.
+- Run `Tools > AR 80s Retro > Configure Build Scene (3-Tag Cup)`, then rebuild the on-device app.
+- Use only IDs `0`, `1`, and `2` from `tagStandard41h12`. The active black square must have a side length of `1 cm`, with `tagSizeMeters = 0.01`.
+- Viewed from above with the handle at 3 o'clock, place ID `0` at 9 o'clock, ID `1` at 1 o'clock, and ID `2` at 5 o'clock.
+- Point the top edge of every Tag toward the cup rim, face every Tag outward, and position each center near the midpoint of the cup body's height. Do not swap IDs `1` and `2`.
+- Do not attach a Tag to the bottom of the cup or use ID `3`.
+- Start testing in portrait orientation at `15–30 cm`, with even lighting and no reflections.
 
-## 标准启动步骤
+## Standard Startup Procedure
 
-1. 先让 ID `0` 正对相机，同时保持完整杯子进入 YOLO 框。
-2. 手机和杯子静止约 `1–2 s`，等待 5 个尺寸样本完成。
-3. 出现 `TRACKING CUP (APRILTAG 0)` 后再拿起杯子。
-4. 缓慢绕杯轴旋转，依次让 ID `1`、ID `2` 接管。
+1. Face ID `0` toward the camera while keeping the entire cup inside the YOLO box.
+2. Briefly hold the phone and cup still while waiting for the first valid joint YOLO + Tag observation.
+3. Pick up the cup only after `TRACKING CUP (APRILTAG 0)` appears.
+4. Slowly rotate the cup about its axis so ID `1` and then ID `2` can take over.
 
-## 屏幕状态
+## On-Screen Status
 
 ### `WAITING: show cup + AprilTag 0/1/2`
 
-尚未同时得到有效 `cup` 检测和任一已配置 Tag。确认控制台存在 `YOLO detect: cup`，并确保至少一个 Tag 完整、清晰地进入画面。
+The system has not yet obtained both a valid `cup` detection and any configured Tag. Check the persistent `YOLO RUNNING` diagnostic line on the phone, and make sure at least one complete, sharply focused Tag is visible.
+
+### `APRILTAG FOUND - YOLO NO CUP (SEE SCORE BELOW)`
+
+The Tag pipeline is working, but YOLO has not reached the cup-like threshold. The diagnostic line below shows the `cup-like` score, required threshold, and current best class. For transparent cups, `cup`, `wine glass`, and `bowl` are all treated as cup candidates.
 
 ### `CUP FOUND - WAITING FOR APRILTAG 0/1/2`
 
-YOLO 已找到杯子，但三个 Tag 都没有新鲜位姿。检查：
+YOLO has found the cup, but none of the three Tags has a fresh pose. Check that:
 
-- Tag family 是否为 `tagStandard41h12`；
-- ID 是否为 `0/1/2`；
-- 黑色有效方形是否确实为 `1 cm`；
-- 标签是否平整、对焦清楚且没有被手遮挡；
-- 是否重新构建并安装了最新 App。
+- The Tag family is `tagStandard41h12`.
+- The ID is `0`, `1`, or `2`.
+- The active black square is exactly `1 cm` wide.
+- The Tag is flat, sharply focused, and not occluded by a hand.
+- The latest app has been rebuilt and installed.
 
-### `AUTO SIZING CUP: n/5 - HOLD STILL`
+### `CUP + TAG FOUND - INITIALIZING REPLACEMENT`
 
-程序正在同一个普通观察角度收集 5 个尺寸帧并取中值。不需要绕杯扫描。若计数不增加，保持完整杯框与一个 Tag 同时可见，并检查深度、焦距和 YOLO 置信度。
+The system is initializing the replacement model from the first valid cup-like box and Tag distance. There is no need to wait for five frames or scan around the cup.
 
 ### `TRACKING CUP (APRILTAG n)`
 
-模型已经建立，`n` 是当前提供位姿的 Tag。切换 ID 时仍使用同一个杯模型，不应产生第二个实例。
+The model has been created, and `n` identifies the Tag currently providing the pose. Switching IDs continues to use the same cup model and should not create a second instance.
 
 ### `APRILTAG HIDDEN - SHORT POSITION FALLBACK`
 
-三个 Tag 暂时都不可见。YOLO/深度仍有效时，系统最多约 `0.8 s` 修正位置并保持最后旋转；重新露出任一 Tag 后恢复 6DoF。
+All three Tags are temporarily invisible. While the YOLO box remains valid, the system corrects position and retains the last rotation for up to approximately `0.8 s`. Full 6DoF tracking resumes when any Tag becomes visible again.
 
 ### `CUP LOST - SHOW CUP + APRILTAG 0/1/2`
 
-杯子与三个 Tag 都超过丢失宽限时间。让完整杯子和任一 Tag 回到画面。
+Both the cup and all three Tags have exceeded the loss grace period. Bring the full cup and any one Tag back into view.
 
-## 360° 绕轴验收
+## 360° Axial-Rotation Acceptance Test
 
-1. 用 ID `0` 完成初始化，并确认现实把手和虚拟把手位于同一侧。
-2. 缓慢绕竖轴旋转杯子，状态应从 ID `0` 接力到 ID `1` 或 ID `2`。
-3. 继续完成 `360°` 转动，模型应保持单实例，位置与把手方向不应在交接时明显跳变。
-4. 重复三次并记录每次接力时的丢失帧数、位置跳变量和角度跳变量。
+1. Initialize with ID `0` and confirm that the physical and virtual handles are on the same side.
+2. Slowly rotate the cup about its vertical axis. Tracking should hand off from ID `0` to ID `1` or ID `2`.
+3. Continue through a full `360°` rotation. The model should remain a single instance, with no obvious jump in position or handle direction during handoff.
+4. Repeat three times, recording dropped frames and position/angle jumps at each handoff.
 
-三个 1 cm Tag 在最差视角仍可能约 `60°` 斜视。若某段角度全部丢失，先缩短距离、提高快门所需的照明、改善打印清晰度，并检查标签是否真的位于约 120° 间隔。
+At the least favorable viewing angle, the three 1 cm Tags may still be seen at an oblique angle of approximately `60°`. If all Tags are lost over part of the rotation, first reduce the distance, increase lighting to support a faster shutter, improve print quality, and verify that the Tags are spaced approximately 120° apart.
 
-## 模型位置或方向不正确
+## Incorrect Model Position or Orientation
 
-1. 虚拟把手总是差固定角度：核对钟表位置与 ID，尤其不要交换 ID `1/2`。
-2. 模型上下颠倒或横躺：确认三个图案上边都朝杯口；`compensateFrameRotation` 必须关闭，`detectorToCameraRotationCorrectionEuler` 必须为 `(0,0,0)`。
-3. 模型中心上下偏移：三个 Tag 应位于相同高度，并尽量对齐杯身高度中点。
-4. 模型固定倾斜：Tag 正面应沿半径朝外，不能歪贴在曲面上。
-5. 使用平面卡座：把标签平面到杯面的间隙填入对应 `tagMountStandoffMeters`。
-6. 模型大小错误：重新执行三 Tag 场景配置并使用完整杯框完成 5 帧定尺寸；确认 `yoloScreenHeightFill = 0.96`。
+1. **The virtual handle always has a fixed angular offset:** Verify the clock positions and IDs, especially that IDs `1/2` were not swapped.
+2. **The model is upside down or lying sideways:** Confirm that the top edge of all three patterns points toward the cup rim. `compensateFrameRotation` must be disabled, and `detectorToCameraRotationCorrectionEuler` must be `(0,0,0)`.
+3. **The model center is vertically offset:** Place all three Tags at the same height and align them as closely as possible with the midpoint of the cup body's height.
+4. **The model has a fixed tilt:** The Tag fronts must face outward along the radius and must not be mounted crooked on the curved surface.
+5. **A flat holder is used:** Enter the gap between the Tag plane and the cup surface in the corresponding `tagMountStandoffMeters` value.
+6. **The model size is incorrect:** Run the three-Tag scene setup again, keep the full cup box and one Tag visible together during initialization, and confirm that `yoloScreenHeightFill = 0.96`.
 
-默认 Tag→杯子旋转为 ID `0` `(0,-90,0)`、ID `1` `(0,+150,0)`、ID `2` `(0,+30,0)`；三者的本地杯心方向均为 `(0,0,+1)`。
+The default Tag-to-cup rotations are ID `0` `(0,-90,0)`, ID `1` `(0,+150,0)`, and ID `2` `(0,+30,0)`. The local cup-center direction for all three is `(0,0,+1)`.
 
-## 物理限制
+## Physical Limitations
 
-- 三侧面 Tag 适合绕杯轴转动和一般倾斜；杯底朝向相机时可能没有任何 Tag 可见，因此不能承诺完整翻转期间持续跟踪。
-- 三个 Tag 全部被遮挡时，YOLO 二维框和手机 IMU无法知道人手如何转动杯子，只能短时保留最后姿态。
-- 检测版 YOLO 不会擦除现实杯子的像素；像素级替换需要分割与背景补全。
-- 当前 cup FBX 是连续网格，只能整体匹配杯身尺寸与把手方向。
+- Three side-mounted Tags work well for rotation about the cup axis and ordinary tilting. When the bottom faces the camera, however, no Tag may be visible, so continuous tracking through a complete flip cannot be guaranteed.
+- When all three Tags are occluded, the 2D YOLO box and phone IMU cannot determine how the user's hand rotates the cup; the system can only retain the last pose briefly.
+- Detection-only YOLO does not erase pixels belonging to the real cup. Pixel-level replacement requires segmentation and background inpainting.
+- The current cup FBX is a continuous mesh and can only be fit as a whole to the cup-body dimensions and handle direction.

@@ -534,41 +534,11 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 331264285}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 0}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: e1760703bbd54c04488a8d10600262ab, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
---- !u!114 &151853167
-MonoBehaviour:
-  m_ObjectHideFlags: 8
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 0}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: fa17d122634046b4a8e23048891fafc5, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  m_RaycastPrefab: {fileID: 0}
---- !u!114 &151853168
-MonoBehaviour:
-  m_ObjectHideFlags: 8
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 0}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: e0cb9aa70a22847b5925ee5f067c10a9, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  m_Camera: {fileID: 0}
-  m_OriginBaseGameObject: {fileID: 0}
-  m_CameraFloorOffsetObject: {fileID: 0}
-  m_RequestedTrackingOriginMode: 0
-  m_CameraYOffset: 1.1176
 --- !u!1 &173779100
 GameObject:
   m_ObjectHideFlags: 0
@@ -1159,6 +1129,10 @@ PrefabInstance:
       value: XR Origin (AR Rig)
       objectReference: {fileID: 0}
     - target: {fileID: 2512387470528047737, guid: 48cb3fb68c91eb94999fd99957eb0cae, type: 3}
+      propertyPath: m_Enabled
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2512387470528047737, guid: 48cb3fb68c91eb94999fd99957eb0cae, type: 3}
       propertyPath: m_PlanePrefab
       value: 
       objectReference: {fileID: 1585201990951412, guid: 886609fc1566e4c27b399f1095d6de18, type: 3}
@@ -1225,23 +1199,22 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6803edce0201f574f923fd9d10e5b30a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
---- !u!114 &331264289
+--- !u!20 &331264287 stripped
+Camera:
+  m_CorrespondingSourceObject: {fileID: 2512387469002778331, guid: 48cb3fb68c91eb94999fd99957eb0cae, type: 3}
+  m_PrefabInstance: {fileID: 331264285}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &331264288 stripped
 MonoBehaviour:
-  m_ObjectHideFlags: 8
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
+  m_CorrespondingSourceObject: {fileID: 2512387470528047718, guid: 48cb3fb68c91eb94999fd99957eb0cae, type: 3}
+  m_PrefabInstance: {fileID: 331264285}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 0}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: e0cb9aa70a22847b5925ee5f067c10a9, type: 3}
+  m_Script: {fileID: 11500000, guid: fa17d122634046b4a8e23048891fafc5, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  m_Camera: {fileID: 0}
-  m_OriginBaseGameObject: {fileID: 0}
-  m_CameraFloorOffsetObject: {fileID: 0}
-  m_RequestedTrackingOriginMode: 0
-  m_CameraYOffset: 1.1176
 --- !u!1 &332374253
 GameObject:
   m_ObjectHideFlags: 0
@@ -1985,57 +1958,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4966719baa26e4b0e8231a24d9bd491a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
---- !u!20 &608830361
-Camera:
-  m_ObjectHideFlags: 8
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 0}
-  m_Enabled: 1
-  serializedVersion: 2
-  m_ClearFlags: 1
-  m_BackGroundColor: {r: 0.19215687, g: 0.3019608, b: 0.4745098, a: 0}
-  m_projectionMatrixMode: 1
-  m_GateFitMode: 2
-  m_FOVAxisMode: 0
-  m_Iso: 200
-  m_ShutterSpeed: 0.005
-  m_Aperture: 16
-  m_FocusDistance: 10
-  m_FocalLength: 50
-  m_BladeCount: 5
-  m_Curvature: {x: 2, y: 11}
-  m_BarrelClipping: 0.25
-  m_Anamorphism: 0
-  m_SensorSize: {x: 36, y: 24}
-  m_LensShift: {x: 0, y: 0}
-  m_NormalizedViewPortRect:
-    serializedVersion: 2
-    x: 0
-    y: 0
-    width: 1
-    height: 1
-  near clip plane: 0.3
-  far clip plane: 1000
-  field of view: 60
-  orthographic: 0
-  orthographic size: 5
-  m_Depth: 0
-  m_CullingMask:
-    serializedVersion: 2
-    m_Bits: 4294967295
-  m_RenderingPath: -1
-  m_TargetTexture: {fileID: 0}
-  m_TargetDisplay: 0
-  m_TargetEye: 3
-  m_HDR: 1
-  m_AllowMSAA: 1
-  m_AllowDynamicResolution: 0
-  m_ForceIntoRT: 0
-  m_OcclusionCulling: 1
-  m_StereoConvergence: 10
-  m_StereoSeparation: 0.022
 --- !u!1 &637151521 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: 5963138107579739024, guid: 02644bbd28622410a84cf154fc436b8a, type: 3}
@@ -6325,13 +6247,15 @@ MonoBehaviour:
   cupProfileStore: {fileID: 1702211337}
   cupDimensionEstimator: {fileID: 1702211338}
   contentRoot: {fileID: 1702211327}
-  arCamera: {fileID: 608830361}
+  arCamera: {fileID: 331264287}
   preferAprilTagPose: 1
   autoConfigureAprilTagTracking: 1
   requireAprilTagPoseForTaggedRules: 1
   cupDemoOnly: 1
-  rotationFollowSpeed: 14
-  tagHandoverFreshnessSeconds: 0.12
+  rotationFollowSpeed: 6
+  tagHandoverFreshnessSeconds: 0.32
+  renderPositionDeadbandMeters: 0.0025
+  renderRotationDeadbandDegrees: 1.25
   visualFallbackMaxViewportDistance: 0.24
   lostStateDelaySeconds: 1.2
   destroyWhenLost: 0
@@ -6353,8 +6277,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6e9e67566c8d06c4dad18479a52fbc2e, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  raycastManager: {fileID: 151853167}
-  arCamera: {fileID: 608830361}
+  raycastManager: {fileID: 331264288}
+  arCamera: {fileID: 331264287}
   depthProvider: {fileID: 1702211334}
   trackableTypes: 1
   anchorInBoundingBox: {x: 0.5, y: 0.9}
@@ -6408,6 +6332,7 @@ MonoBehaviour:
   outputFormat: 3
   frameRotation: 1
   centerCropToOutputAspect: 1
+  minimumCaptureIntervalSeconds: 0.08
   lockToPortrait: 1
   screenOffsetNormalized: {x: 0, y: 0}
   screenScale: {x: 1, y: 1}
@@ -6426,6 +6351,7 @@ MonoBehaviour:
   detector: {fileID: 1702211332}
   boxColor: {r: 0, g: 1, b: 0, a: 1}
   lineThickness: 4
+  holdDetectionSeconds: 0.8
 --- !u!114 &1702211331
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -6457,11 +6383,11 @@ MonoBehaviour:
   frameProvider: {fileID: 1702211329}
   backendType: 256
   inferenceIntervalSeconds: 0.25
-  confidenceThreshold: 0.45
+  confidenceThreshold: 0.2
   iouThreshold: 0.45
   maxDetections: 12
-  logDetections: 1
-  diagnosticLogInterval: 10
+  logDetections: 0
+  diagnosticLogInterval: 20
   segmentationMaskResolution: 64
   segmentationMaskThreshold: 0.5
 --- !u!114 &1702211333
@@ -6471,7 +6397,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1702211323}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: b15f82cc229284894964d2d30806969d, type: 3}
   m_Name: 
@@ -6488,14 +6414,14 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1702211323}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 6d4e527a80a549e7ae27d6e5a5df81ce, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
   occlusionManager: {fileID: 1702211333}
   cameraManager: {fileID: 608830360}
-  arCamera: {fileID: 608830361}
+  arCamera: {fileID: 331264287}
   requestedDepthMode: 1
   requestTemporalSmoothing: 1
   sampleRadiusNormalized: 0.025
@@ -6522,13 +6448,21 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f1d4b4a07be45714faf91ae8e3ea7578, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  arCamera: {fileID: 608830361}
+  arCamera: {fileID: 331264287}
   trackedImageManager: {fileID: 0}
   bindings: []
   defaultMaxPoseAgeSeconds: 0.6
   detectionBoxPadding: 0.18
   maxViewportCenterDistance: 0.55
   allowSingleVisibleTagFallback: 1
+  filterPublishedTagPoses: 1
+  positionFilterSpeed: 7
+  rotationFilterSpeed: 6
+  positionDeadbandMeters: 0.0015
+  rotationDeadbandDegrees: 0.8
+  maximumSingleFramePositionJumpMeters: 0.12
+  maximumSingleFrameRotationJumpDegrees: 55
+  filterResetGapSeconds: 0.45
   logPoseUpdates: 0
 --- !u!114 &1702211336
 MonoBehaviour:
@@ -6544,13 +6478,13 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   frameProvider: {fileID: 1702211329}
   poseSource: {fileID: 1702211335}
-  arCamera: {fileID: 608830361}
+  arCamera: {fileID: 331264287}
   tagSizeMeters: 0.01
   decimation: 1
-  detectionIntervalSeconds: 0.05
+  detectionIntervalSeconds: 0.1
   compensateFrameRotation: 0
   detectorToCameraRotationCorrectionEuler: {x: 0, y: 0, z: 0}
-  logDetectedTags: 1
+  logDetectedTags: 0
 --- !u!114 &1702211337
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -6577,8 +6511,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b7035f166abf4d4aa4d3c15a371eac76, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  useEnvironmentDepth: 0
   depthProvider: {fileID: 1702211334}
-  arCamera: {fileID: 608830361}
+  arCamera: {fileID: 331264287}
   minimumCupDimensionMeters: 0.03
   maximumCupDimensionMeters: 0.6
   fallbackHeightMultiplier: 0.94

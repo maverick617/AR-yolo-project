@@ -243,7 +243,7 @@ PlayerSettings:
   metalCompileShaderBinary: 0
   iOSRenderExtraFrameOnPause: 0
   iosCopyPluginsCodeInsteadOfSymlink: 0
-  appleDeveloperTeamID:
+  appleDeveloperTeamID: 
   iOSManualSigningProvisioningProfileID: 
   tvOSManualSigningProvisioningProfileID: 
   VisionOSManualSigningProvisioningProfileID: 
@@ -552,7 +552,8 @@ PlayerSettings:
   enableInternalProfiler: 0
   logObjCUncaughtExceptions: 1
   enableCrashReportAPI: 0
-  cameraUsageDescription: The camera is used to detect a cup and AprilTags for augmented reality tracking.
+  cameraUsageDescription: The camera is used to detect a cup and AprilTags for augmented
+    reality tracking.
   locationUsageDescription: 
   microphoneUsageDescription: 
   bluetoothUsageDescription: 

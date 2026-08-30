@@ -1,10 +1,15 @@
+using System;
+using System.IO;
+using System.Linq;
 using AR80sRetro;
 using Unity.Sentis;
 using UnityEditor;
+using UnityEditor.Build.Reporting;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.XR.ARFoundation;
 using Unity.XR.CoreUtils;
+using Object = UnityEngine.Object;
 
 namespace AR80sRetroEditor
 {
@@ -26,6 +31,61 @@ namespace AR80sRetroEditor
                 OpenSceneMode.Single);
             ConfigureScene();
             EditorSceneManager.SaveScene(scene);
+        }
+
+        [MenuItem("Tools/AR 80s Retro/Build iOS Player (3-Tag Cup)")]
+        public static void BuildIosPlayer()
+        {
+            if (EditorUserBuildSettings.activeBuildTarget != BuildTarget.iOS
+                && !EditorUserBuildSettings.SwitchActiveBuildTarget(
+                    BuildTargetGroup.iOS,
+                    BuildTarget.iOS))
+            {
+                throw new InvalidOperationException(
+                    "Could not switch the Unity Editor to the iOS build target.");
+            }
+
+            ConfigureBuildScene();
+
+            string outputPath = Environment.GetEnvironmentVariable(
+                "AR80SRETRO_IOS_BUILD_PATH");
+            if (string.IsNullOrWhiteSpace(outputPath))
+            {
+                outputPath = Path.GetFullPath(Path.Combine(
+                    Application.dataPath,
+                    "..",
+                    "Builds",
+                    "iOS-AprilTag"));
+            }
+
+            string[] scenes = EditorBuildSettings.scenes
+                .Where(scene => scene.enabled)
+                .Select(scene => scene.path)
+                .ToArray();
+            if (scenes.Length == 0)
+            {
+                throw new InvalidOperationException(
+                    "No enabled scenes were found in Build Settings.");
+            }
+
+            BuildReport report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
+            {
+                scenes = scenes,
+                locationPathName = outputPath,
+                target = BuildTarget.iOS,
+                options = BuildOptions.Development
+            });
+
+            if (report.summary.result != BuildResult.Succeeded)
+            {
+                throw new InvalidOperationException(
+                    $"iOS build failed with {report.summary.totalErrors} error(s). "
+                    + $"See the Unity Console for details. Output: '{outputPath}'.");
+            }
+
+            Debug.Log(
+                $"Three-tag Cup iOS build succeeded: '{outputPath}' "
+                + $"({report.summary.totalSize} bytes).");
         }
 
         [MenuItem("Tools/AR 80s Retro/Configure YOLO Scene")]
@@ -51,7 +111,7 @@ namespace AR80sRetroEditor
             {
                 Debug.LogWarning(
                     $"Optional cup segmentation model was not found at '{SegmentationModelPath}'. "
-                    + "The demo will use detector-box plus metric AprilTag/depth sizing until a compatible YOLOv8-seg ONNX is imported.");
+                    + "The demo will use the detector box plus metric AprilTag range until a compatible YOLOv8-seg ONNX is imported.");
             }
 
             RetroPrefabLibrary prefabLibrary =
@@ -94,6 +154,7 @@ namespace AR80sRetroEditor
                 positionSolver = GetOrAddComponent<ARRaycastPositionSolver>(systemObject);
             }
             ARRaycastManager raycastManager = Object.FindObjectOfType<ARRaycastManager>();
+            ARPlaneManager planeManager = Object.FindObjectOfType<ARPlaneManager>();
 
             if (cameraManager == null)
             {
@@ -135,12 +196,20 @@ namespace AR80sRetroEditor
                 GetOrAddComponent<AROcclusionManager>(systemObject);
 
             AssignObjectReference(frameProvider, "cameraManager", cameraManager);
+            AssignFloat(frameProvider, "minimumCaptureIntervalSeconds", 0.08f);
             AssignObjectReference(detector, "modelAsset", modelAsset);
             AssignObjectReference(detector, "segmentationModelAsset", segmentationModelAsset);
             AssignObjectReference(detector, "frameProvider", frameProvider);
+            AssignFloat(detector, "inferenceIntervalSeconds", 0.25f);
+            AssignFloat(detector, "confidenceThreshold", 0.2f);
+            AssignBoolean(detector, "logDetections", false);
+            AssignInteger(detector, "diagnosticLogInterval", 20);
+            AssignBoolean(detector, "logRuntimeEvaluation", true);
+            AssignFloat(detector, "evaluationWindowSeconds", 20f);
             AssignObjectReference(pipeline, "detector", detector);
             AssignObjectReference(pipeline, "replacementManager", replacementManager);
             AssignObjectReference(overlay, "detector", detector);
+            AssignFloat(overlay, "holdDetectionSeconds", 0.8f);
             AssignObjectReference(replacementManager, "prefabLibrary", prefabLibrary);
             AssignObjectReference(replacementManager, "positionSolver", positionSolver);
             AssignObjectReference(replacementManager, "aprilTagPoseSource", aprilTagPoseSource);
@@ -152,9 +221,14 @@ namespace AR80sRetroEditor
             AssignBoolean(replacementManager, "autoConfigureAprilTagTracking", true);
             AssignBoolean(replacementManager, "requireAprilTagPoseForTaggedRules", true);
             AssignBoolean(replacementManager, "cupDemoOnly", true);
-            AssignFloat(replacementManager, "tagHandoverFreshnessSeconds", 0.12f);
+            AssignFloat(replacementManager, "rotationFollowSpeed", 6f);
+            AssignFloat(replacementManager, "tagHandoverFreshnessSeconds", 0.32f);
+            AssignFloat(replacementManager, "renderPositionDeadbandMeters", 0.0025f);
+            AssignFloat(replacementManager, "renderRotationDeadbandDegrees", 1.25f);
             AssignFloat(replacementManager, "yoloScreenHeightFill", 0.96f);
             AssignFloat(replacementManager, "maximumYoloScreenScaleCorrection", 10f);
+            AssignBoolean(replacementManager, "logRuntimeEvaluation", true);
+            AssignFloat(replacementManager, "evaluationWindowSeconds", 20f);
             AssignObjectReference(positionSolver, "raycastManager", raycastManager);
             AssignObjectReference(positionSolver, "arCamera", arCamera);
             AssignObjectReference(positionSolver, "depthProvider", depthProvider);
@@ -163,13 +237,28 @@ namespace AR80sRetroEditor
             AssignObjectReference(depthProvider, "arCamera", arCamera);
             AssignObjectReference(dimensionEstimator, "depthProvider", depthProvider);
             AssignObjectReference(dimensionEstimator, "arCamera", arCamera);
+            AssignBoolean(dimensionEstimator, "useEnvironmentDepth", false);
             AssignObjectReference(aprilTagPoseSource, "arCamera", arCamera);
             AssignObjectReference(aprilTagPoseSource, "trackedImageManager", trackedImageManager);
+            AssignBoolean(aprilTagPoseSource, "filterPublishedTagPoses", true);
+            AssignFloat(aprilTagPoseSource, "positionFilterSpeed", 7f);
+            AssignFloat(aprilTagPoseSource, "rotationFilterSpeed", 6f);
+            AssignFloat(aprilTagPoseSource, "positionDeadbandMeters", 0.0015f);
+            AssignFloat(aprilTagPoseSource, "rotationDeadbandDegrees", 0.8f);
+            AssignFloat(aprilTagPoseSource, "maximumSingleFramePositionJumpMeters", 0.12f);
+            AssignFloat(aprilTagPoseSource, "maximumSingleFrameRotationJumpDegrees", 55f);
+            AssignFloat(aprilTagPoseSource, "filterResetGapSeconds", 0.45f);
+            AssignBoolean(aprilTagPoseSource, "logRuntimeEvaluation", true);
+            AssignFloat(aprilTagPoseSource, "evaluationWindowSeconds", 20f);
             AssignObjectReference(aprilTagDetector, "frameProvider", frameProvider);
             AssignObjectReference(aprilTagDetector, "poseSource", aprilTagPoseSource);
             AssignObjectReference(aprilTagDetector, "arCamera", arCamera);
             AssignFloat(aprilTagDetector, "tagSizeMeters", CupTagSizeMeters);
+            AssignFloat(aprilTagDetector, "detectionIntervalSeconds", 0.1f);
             AssignInteger(aprilTagDetector, "decimation", 1);
+            AssignBoolean(aprilTagDetector, "logDetectedTags", false);
+            AssignBoolean(aprilTagDetector, "logRuntimeEvaluation", true);
+            AssignFloat(aprilTagDetector, "evaluationWindowSeconds", 20f);
             // ARCameraFrameProvider already rotates the CPU image into the
             // portrait detector texture. Applying frameRotation again to the
             // returned pose makes an upright side Tag publish a horizontal +Y.
@@ -181,12 +270,21 @@ namespace AR80sRetroEditor
 
             DisableIfPresent<MockDetectionInput>(systemObject);
             DisableIfPresent<CameraFrameSmokeTest>(systemObject);
+            depthProvider.enabled = false;
+            occlusionManager.enabled = false;
+            if (planeManager != null)
+            {
+                planeManager.enabled = false;
+                EditorUtility.SetDirty(planeManager);
+            }
+            EditorUtility.SetDirty(depthProvider);
+            EditorUtility.SetDirty(occlusionManager);
 
             EditorUtility.SetDirty(systemObject);
             EditorSceneManager.MarkSceneDirty(systemObject.scene);
             Selection.activeGameObject = systemObject;
 
-            Debug.Log("Three-tag Cup scene configuration completed. Side Tag 0/1/2 share one cup track, guided camera scanning is disabled, mock input and camera render-occlusion are disabled, and environment depth remains available for measurement. Save the scene before building.");
+            Debug.Log("Three-tag Cup scene configuration completed. Side Tag 0/1/2 share one stabilized cup track with handover hysteresis, per-Tag pose filtering and render deadbands; transparent cup/wine-glass/bowl detections feed the cup rule; LiDAR depth, plane visualization, mock input and render occlusion are disabled. Save the scene before building.");
         }
 
         private static bool ValidateCupMountGeometry(RetroReplacementRule cupRule)

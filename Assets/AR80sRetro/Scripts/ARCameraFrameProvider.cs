@@ -21,6 +21,8 @@ namespace AR80sRetro
         [SerializeField] private TextureFormat outputFormat = TextureFormat.RGB24;
         [SerializeField] private FrameRotation frameRotation = FrameRotation.Clockwise90;
         [SerializeField] private bool centerCropToOutputAspect = true;
+        [Tooltip("Limits CPU camera acquisition so AprilTag and YOLO can share one recent frame without retaining a new ARKit frame for every detector update.")]
+        [SerializeField, Min(0.03f)] private float minimumCaptureIntervalSeconds = 0.08f;
         [Tooltip("The cup demo uses one calibrated portrait camera transform. Keep this enabled until all display orientations have separate calibration.")]
         [SerializeField] private bool lockToPortrait = true;
         [SerializeField] private Vector2 screenOffsetNormalized;
@@ -35,6 +37,7 @@ namespace AR80sRetro
         public Texture2D CameraTexture => cameraTexture;
         public bool HasFrame { get; private set; }
         public double FrameTimestampSeconds { get; private set; }
+        public int FrameSequence { get; private set; }
         public FrameRotation AppliedFrameRotation => frameRotation;
         public event Action<Texture2D> FrameReady;
 
@@ -99,6 +102,14 @@ namespace AR80sRetro
 
         public bool TryUpdateFrame()
         {
+            double now = Time.realtimeSinceStartupAsDouble;
+            if (HasFrame
+                && now - FrameTimestampSeconds
+                    < Mathf.Max(0.03f, minimumCaptureIntervalSeconds))
+            {
+                return true;
+            }
+
             if (lastUpdatedUnityFrame == Time.frameCount)
             {
                 return HasFrame;
@@ -112,7 +123,9 @@ namespace AR80sRetro
                 return false;
             }
 
-            using (image)
+            NativeArray<byte> buffer = default;
+            bool imageDisposed = false;
+            try
             {
                 lastInputRect = CalculateInputRect(image.width, image.height);
                 XRCpuImage.ConversionParams conversionParams = new XRCpuImage.ConversionParams
@@ -124,21 +137,31 @@ namespace AR80sRetro
                 };
 
                 int dataSize = image.GetConvertedDataSize(conversionParams);
-                NativeArray<byte> buffer = new NativeArray<byte>(dataSize, Allocator.Temp);
+                buffer = new NativeArray<byte>(dataSize, Allocator.Temp);
+                image.Convert(conversionParams, buffer);
 
-                try
+                // XRCpuImage retains the native ARKit frame. Release it before
+                // the comparatively expensive pixel rotation and texture upload.
+                image.Dispose();
+                imageDisposed = true;
+                UploadConvertedFrame(buffer);
+            }
+            finally
+            {
+                if (!imageDisposed)
                 {
-                    image.Convert(conversionParams, buffer);
-                    UploadConvertedFrame(buffer);
+                    image.Dispose();
                 }
-                finally
+
+                if (buffer.IsCreated)
                 {
                     buffer.Dispose();
                 }
             }
 
             HasFrame = true;
-            FrameTimestampSeconds = Time.realtimeSinceStartupAsDouble;
+            FrameTimestampSeconds = now;
+            FrameSequence++;
             FrameReady?.Invoke(cameraTexture);
             return true;
         }

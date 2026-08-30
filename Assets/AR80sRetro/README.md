@@ -1,35 +1,35 @@
-# AR80sRetro：三 AprilTag Cup 实现说明
+# AR80sRetro: Three-AprilTag Cup Implementation
 
-## 运行链路
+## Runtime Pipeline
 
 ```text
 ARCameraFrameProvider
-    ├── YoloObjectDetector ───────────── cup 检测框/置信度
-    ├── ARDepthFrameProvider ─────────── 可选米制深度
-    └── KeijiroAprilTagFrameDetector ── Tag 0/1/2 原始 6DoF
+    ├── YoloObjectDetector ───────────── cup bounding box/confidence
+    ├── ARDepthFrameProvider ─────────── optional metric depth
+    └── KeijiroAprilTagFrameDetector ── raw 6DoF for Tag 0/1/2
                                               │
 AprilTagPoseSource <──────────────────────────┘
-    │ 选择与 cup 框对应的最新 Tag
+    │ select the freshest Tag matching the cup box
     v
 RetroReplacementManager
-    ├── CupDimensionEstimator ── 5 帧中值尺寸
-    ├── RetroReplacementRule ─── Tag→公共杯子坐标系
-    └── CupModelFitter ───────── 杯身直径/高度/把手方向
+    ├── CupDimensionEstimator ── median dimensions from 5 frames
+    ├── RetroReplacementRule ─── Tag-to-shared-cup transform
+    └── CupModelFitter ───────── body diameter/height/handle direction
 ```
 
-当前 `Retro Prefab Library.asset` 只有一个 `cup` rule：主 Tag 为 ID `0`，附加 Tag 为 ID `1/2`。三个 Tag 都安装在杯身侧面，任一 Tag 的位姿都被换算为同一个杯身中心与把手方向。ID 之间切换时复用同一个 `TrackedReplacement`。
+The current `Retro Prefab Library.asset` contains a single `cup` rule: ID `0` is the primary Tag, and IDs `1/2` are additional Tags. All three Tags are mounted on the sides of the cup body, and each Tag's pose is transformed into the same cup-body center and handle direction. The same `TrackedReplacement` is reused when switching between IDs.
 
-## 三个刚性 mount
+## Three Rigid Mounts
 
-| ID | 杯身位置（把手为 3 点） | 图案上边 | Tag→Cup 欧拉角 |
+| ID | Position on cup (handle at 3 o'clock) | Pattern top edge | Tag-to-cup Euler angles |
 |---|---|---|---|
-| 0 | 9 点 | 朝杯口 | `(0,-90,0)` |
-| 1 | 1 点 | 朝杯口 | `(0,+150,0)` |
-| 2 | 5 点 | 朝杯口 | `(0,+30,0)` |
+| 0 | 9 o'clock | Toward the rim | `(0,-90,0)` |
+| 1 | 1 o'clock | Toward the rim | `(0,+150,0)` |
+| 2 | 5 o'clock | Toward the rim | `(0,+30,0)` |
 
-三者中心位于杯身高度中点附近，正面沿半径朝外。有效黑色方形边长为 `0.01 m`。Keijiro Tag 本地 `+Z` 从图案正面指入背面，因此默认 `tagToCupCenterDirection = (0,0,+1)`，中心距离为实测杯身直径的一半加卡座间隙。
+The centers of all three Tags are near the midpoint of the cup body's height, and their front faces point outward along the radius. The active black square has a side length of `0.01 m`. The Keijiro Tag's local `+Z` axis points from the front of the pattern through its back, so the default is `tagToCupCenterDirection = (0,0,+1)`. The center distance is half the measured cup-body diameter plus the mount standoff.
 
-模型位姿为：
+The model pose is:
 
 ```text
 cupRotation = tagRotation * configuredTagToCupRotation
@@ -37,32 +37,32 @@ cupPosition = tagPosition
             + tagRotation * configuredTagToCupCenterOffset
 ```
 
-首次看到完整 cup 框和任一 Tag 后，尺寸估计器收集 `cupRegistrationSamples = 5` 个有效样本并取中值。尺寸锁定后，Tag 可继续独立提供位姿；YOLO 暂时丢失不会立即销毁模型。
+After the full cup box and any Tag are first visible, the dimension estimator collects `cupRegistrationSamples = 5` valid samples and takes their median. Once the dimensions are locked, the Tag can continue to provide the pose independently; a temporary loss of YOLO detection does not immediately destroy the model.
 
-## 主要文件
+## Key Files
 
-- `Scripts/KeijiroAprilTagFrameDetector.cs`：从相机 CPU 图像检测 AprilTag 并发布世界位姿。
-- `Scripts/AprilTagPoseSource.cs`：缓存新鲜位姿、过滤到规则允许的 ID，并关联 YOLO cup 框。
-- `Scripts/RetroReplacementRule.cs`：描述三个 rigid mount 到公共杯子坐标系的变换。
-- `Scripts/RetroReplacementManager.cs`：管理初始化、Tag 接力、短时 fallback 与单模型生命周期。
-- `Scripts/CupDimensionEstimator.cs`：结合 YOLO 框、深度和相机投影估算米制尺寸。
-- `Scripts/CupModelFitter.cs`：把复古杯模型匹配到测得的杯高/杯身直径。
-- `Editor/AR80sRetroYoloSetup.cs`：验证 mount 几何并自动连接构建场景。
+- `Scripts/KeijiroAprilTagFrameDetector.cs`: Detects AprilTags in camera CPU images and publishes world-space poses.
+- `Scripts/AprilTagPoseSource.cs`: Caches fresh poses, filters for IDs allowed by the rule, and associates them with the YOLO cup box.
+- `Scripts/RetroReplacementRule.cs`: Describes the transforms from the three rigid mounts into the shared cup coordinate frame.
+- `Scripts/RetroReplacementManager.cs`: Manages initialization, Tag handoff, short-term fallback, and the single-model lifecycle.
+- `Scripts/CupDimensionEstimator.cs`: Combines the YOLO box, depth, and camera projection to estimate metric dimensions.
+- `Scripts/CupModelFitter.cs`: Fits the retro cup model to the measured cup height and body diameter.
+- `Editor/AR80sRetroYoloSetup.cs`: Validates mount geometry and automatically connects the build scene.
 
-## 场景配置
+## Scene Setup
 
-在 Unity `2022.3.62f3` 中执行：
+In Unity `2022.3.62f3`, run:
 
 ```text
 Tools > AR 80s Retro > Configure Build Scene (3-Tag Cup)
 ```
 
-配置工具会：
+The setup tool will:
 
-- 验证 ID `0/1/2` 都恢复到同一个杯子坐标系，并拒绝活动规则中的 ID `3`；
-- 设置 `tagSizeMeters = 0.01`、`decimation = 1`；
-- 设置 `compensateFrameRotation = false` 和零手动旋转修正；
-- 连接 AR 相机、YOLO、深度、AprilTag、尺寸估计和替换管理器；
-- 禁用 mock input 与相机渲染遮挡，保留系统对象上的深度测量。
+- Verify that IDs `0/1/2` all resolve to the same cup coordinate frame and reject ID `3` in the active rule.
+- Set `tagSizeMeters = 0.01` and `decimation = 1`.
+- Set `compensateFrameRotation = false` and use zero manual rotation correction.
+- Connect the AR camera, YOLO, depth, AprilTag, dimension-estimation, and replacement-manager components.
+- Disable mock input and camera-render occlusion while retaining depth measurement on the system object.
 
-真机步骤与排错见 `CUP_DEMO_SETUP_ZH.md`。
+For on-device steps and troubleshooting, see `CUP_DEMO_SETUP_ZH.md`.

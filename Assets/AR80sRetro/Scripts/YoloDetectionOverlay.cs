@@ -8,9 +8,12 @@ namespace AR80sRetro
         [SerializeField] private YoloObjectDetector detector;
         [SerializeField] private Color boxColor = Color.green;
         [SerializeField, Min(1f)] private float lineThickness = 4f;
+        [SerializeField, Min(0.1f)] private float holdDetectionSeconds = 0.8f;
 
         private readonly List<DetectionResult> latestDetections = new List<DetectionResult>();
         private GUIStyle labelStyle;
+        private GUIStyle statusStyle;
+        private float lastPositiveDetectionTime = float.NegativeInfinity;
 
         private void Reset()
         {
@@ -35,21 +38,30 @@ namespace AR80sRetro
 
         private void HandleDetectionsReady(IReadOnlyList<DetectionResult> detections)
         {
-            latestDetections.Clear();
-            if (detections == null)
+            if (detections == null || detections.Count == 0)
             {
                 return;
             }
 
+            latestDetections.Clear();
             for (int i = 0; i < detections.Count; i++)
             {
                 latestDetections.Add(detections[i]);
             }
+
+            lastPositiveDetectionTime = Time.unscaledTime;
         }
 
         private void OnGUI()
         {
             EnsureStyle();
+
+            if (Time.unscaledTime - lastPositiveDetectionTime > holdDetectionSeconds)
+            {
+                latestDetections.Clear();
+            }
+
+            DrawDetectorStatus();
 
             Color previousColor = GUI.color;
             GUI.color = boxColor;
@@ -72,6 +84,36 @@ namespace AR80sRetro
             }
 
             GUI.color = previousColor;
+        }
+
+        private void DrawDetectorStatus()
+        {
+            string message;
+            if (detector == null)
+            {
+                message = "YOLO ERROR: detector missing";
+            }
+            else if (detector.InitializationFailed)
+            {
+                message = "YOLO ERROR: initialization failed (see Xcode log)";
+            }
+            else if (!detector.IsInitialized || detector.InferenceCount == 0)
+            {
+                message = "YOLO STARTING: waiting for camera frame";
+            }
+            else
+            {
+                string state = detector.LastDetectionCount > 0
+                    ? "CUP FOUND"
+                    : "NO CUP";
+                message = $"YOLO RUNNING #{detector.InferenceCount} | {state} | "
+                    + $"cup-like={detector.LastCupLikeScore:F2} "
+                    + $"(need {detector.ConfidenceThreshold:F2}) | "
+                    + $"best={detector.LastBestClassLabel} {detector.LastBestScore:F2}";
+            }
+
+            float width = Mathf.Min(900f, Mathf.Max(280f, Screen.width - 32f));
+            GUI.Box(new Rect(16f, 88f, width, 74f), message, statusStyle);
         }
 
         private void DrawOutline(Rect rect)
@@ -99,6 +141,14 @@ namespace AR80sRetro
                 fontStyle = FontStyle.Bold
             };
             labelStyle.normal.textColor = boxColor;
+
+            statusStyle = new GUIStyle(GUI.skin.box)
+            {
+                alignment = TextAnchor.MiddleLeft,
+                fontSize = Mathf.Clamp(Mathf.RoundToInt(Screen.height * 0.021f), 14, 25),
+                wordWrap = true
+            };
+            statusStyle.normal.textColor = Color.white;
         }
     }
 }
